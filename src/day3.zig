@@ -8,13 +8,42 @@ fn partOneProcessing(binaryCounts: [12]usize, totalLines: usize) u32 {
     const threshold = totalLines / 2;    
 
     for (binaryCounts, 0..) |bin, i| {
+        const shift: u5 = @intCast(i);
         if (bin > threshold){
-            gamma += 1 << i;
+            gamma += @as(u32,1) << shift;
         } else {
-            epsilon += 1 << i;
+            epsilon += @as(u32,1) << shift;
         }
     }
-    return gamma * epsilon;
+    printerr("p1p: G: {}, E: {}. Answer: {}.\n", .{gamma, epsilon, gamma * epsilon});
+    //return gamma * epsilon;
+    return gamma;
+}
+
+fn getInverseBinary(gamma: u32) u32 {
+    var gamma_var = gamma;
+    var epsilon: u32 = 0;
+    var b: u5 = 0;
+    while (gamma_var > 0){
+        const lsb = gamma_var % 2;
+        if (lsb == 0){
+            epsilon += @as(u32,1) << b;
+        } 
+        gamma_var /= 2;
+        b += 1;
+    }
+    return epsilon;
+}
+
+fn partTwo(binaryCounts: [12]usize, totalLines: usize) usize {
+    var gpa = heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+ 
+    var candidates = std.ArrayList([12]u8).init(allocator);
+    defer candidates.deinit();
+    _ = binaryCounts;
+    _ = totalLines;
 }
 
 pub fn main() !void {
@@ -39,6 +68,7 @@ pub fn main() !void {
         //printerr("\n", .{});
     }
     printerr("{any} and {any}.\n", .{binaryCounts, totalLines});
-    const answer = partOneProcessing(binaryCounts, totalLines);
-    printerr("Part One: {}.\n", .{answer});
+    const gamma = partOneProcessing(binaryCounts, totalLines);
+    const epsilon = getInverseBinary(gamma);
+    printerr("Part One: {} * {} = {}.\n", .{gamma, epsilon, gamma * epsilon});
 } 
