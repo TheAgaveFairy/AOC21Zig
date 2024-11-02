@@ -12,6 +12,19 @@ fn partOne(depths: []const usize) usize {
     return answer;
 }
 
+fn partTwo(depths: []const usize) usize {
+    var answer: usize = 0;
+    var prevSum = depths[0] + depths[1] + depths[2];
+    for (depths[3..], 0..) |curr, i| {
+        const currSum = prevSum - depths[i] + curr;
+        if (currSum > prevSum){
+            answer += 1;
+        }
+        prevSum = currSum;
+    }
+    return answer;
+}
+
 pub fn main() !void {
     var gpa = heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -55,4 +68,6 @@ pub fn main() !void {
 
     const p1 = partOne(depths.items);
     std.debug.print("From fn(): {}.\n", .{p1});
+    const p2 = partTwo(depths.items);
+    std.debug.print("Part Two: {}.\n", .{p2});
 }
