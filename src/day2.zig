@@ -17,19 +17,19 @@ const Instr = enum {
     }
 };
 
-var SubmarineTwo = struct {
+const SubmarineTwo = struct {
     x_pos: usize = 0,
     y_pos: usize = 0,
     aim:   usize = 0,
 
-    pub fn moveForward(self: SubmarineTwo, value: usize) void { 
+    pub fn moveForward(self: *SubmarineTwo, value: usize) void { 
         self.x_pos += value;
         self.y_pos += self.aim * value;
     }
-    pub fn moveDown(self: SubmarineTwo, value: usize) void {
+    pub fn moveDown(self: *SubmarineTwo, value: usize) void {
         self.aim += value;
     }
-    pub fn moveUp(self: SubmarineTwo, value: usize) void {
+    pub fn moveUp(self: *SubmarineTwo, value: usize) void {
         self.aim -= value;
     }
 };
@@ -58,27 +58,21 @@ pub fn main() !void {
         const value = try std.fmt.parseInt(usize, iter.rest(), 10);
         const instr = try Instr.fromString(instr_str);
         
-        if(instr == instr.forward){
-            x_pos += value; // part one
-            subTwo.moveForward(value);
-        } else if (instr == instr.up){
-            y_pos -= value; // part one
-            subTwo.moveUp(value);
-        } else if (instr == instr.down){
-            y_pos += value; // part one
-            subTwo.moveDown(value);
-        } else {
-            unreachable;
+        switch(instr){
+            .forward => {
+                x_pos += value; // part one
+                subTwo.moveForward(value);
+            },
+            .up => {
+                y_pos -= value; // part one
+                subTwo.moveUp(value);
+            },
+            .down => {
+                y_pos += value; // part one
+                subTwo.moveDown(value);
+            }
         }
-
-
-        
-        //switch (instr) {
-        //    .forward    => x_pos += value,
-        //    .up         => y_pos -= value,
-        //    .down       => y_pos += value,
-        //}
     }
     printerr("PartOne: x:{} y:{} => answer: {}.\n", .{x_pos, y_pos, x_pos * y_pos});
-    printerr("PartTwo: x:{} y:{} aim:{} => answer: {}.\n", .{subTwo.x_pos, subTwo.y_pos, subTwo.aim});
+    printerr("PartTwo: x:{} y:{} aim:{} => answer: {}.\n", .{subTwo.x_pos, subTwo.y_pos, subTwo.aim, subTwo.y_pos * subTwo.x_pos});
 }
