@@ -4,6 +4,19 @@ const printerr = std.debug.print;
 
 const BITS = 12;
 
+fn lineToInteger(line: [12]u8) u32 {
+    var i: u5 = 0;
+    const length: u5 = line.len;
+    var answer: u32 = 0;
+    while (i < length) : (i +=1 ){
+        if(line[i] == '1'){
+            const t: u5 = length - i - @as(u5,1);
+            answer += @as(u32, 1) << @as(u5,t);
+        }
+    }
+    return answer;
+}
+
 fn partOneProcessing(binaryCounts: [BITS]usize, totalLines: usize) u32 {
     var gamma: u32 = 0;
     var epsilon: u32 = 0;
@@ -22,7 +35,6 @@ fn partOneProcessing(binaryCounts: [BITS]usize, totalLines: usize) u32 {
 
 fn getInverseBinary(gamma: u32) u32 {
     const mask = (@as(u32,1) << BITS) - 1;  // 12 is a magic number because each line is 12 bits. not ideal.
-    printerr("not gamma {}", .{~gamma});
     return (~gamma & mask); // it's so nice to have bitwise operators!
 }
 
@@ -34,7 +46,6 @@ fn getMostCommonBitPerPosition(binaryCounts: [BITS]usize, totalLines: usize) [BI
             mostCommon[i] = true;
         }
     }
-    printerr("mostCommon: {any}.\n", .{mostCommon});
     return mostCommon;
 }
 
@@ -51,57 +62,79 @@ pub fn main() !void {
     var buf: [256]u8 = undefined; //ascii bytes as our buffer
         
     var binaryCounts = [_]usize{0} ** BITS;
-    var totalLines: usize = 0;
 
-    var lines = std.ArrayList([]u8).init(allocator);
+    const LineBuffer = [12]u8;
+    var lines = std.ArrayList(LineBuffer).init(allocator);
     defer lines.deinit();
 
     while (try in_stream.readUntilDelimiterOrEof(&buf, '\n')) |line| {
-        const temp_line = line[0..BITS].toOwnedSlice();
-        try lines.appendSlice(temp_line.*);
+        var temp_line: LineBuffer = undefined;
+        @memcpy(temp_line[0..line.len], line);
+        try lines.append(temp_line);
         for (line, 0..) |byte, i| {
             if (byte == '1'){
                 binaryCounts[i] += 1;
             }
         }
-        totalLines += 1;
     }
-    printerr("{any} and {any}.\n", .{binaryCounts, totalLines});
+
+
+    const totalLines = lines.items.len;
     const gamma = partOneProcessing(binaryCounts, totalLines);
     const epsilon = getInverseBinary(gamma);
     printerr("Part One: {} * {} = {}.\n", .{gamma, epsilon, gamma * epsilon});
     
     // THUS BEGAN PART TWO IN EARNEST
 
-    var eligible = try allocator.alloc(bool, totalLines);
-    defer allocator.free(eligible);
-    for (eligible) |*value| {
+    var oxygen = try allocator.alloc(bool, totalLines);
+    defer allocator.free(oxygen);
+    for (oxygen) |*value| {
+        value.* = true;
+    }
+    var carbon = try allocator.alloc(bool, totalLines);
+    defer allocator.free(carbon);
+    for (carbon) |*value| {
         value.* = true;
     }
     
-    var totalEligible: usize = totalLines; //answer is when we're down to one
+ 
+    var oxygenEligible: usize = totalLines; //answer is when we're down to one
+    var carbonEligible: usize = totalLines; //answer is when we're down to one
     const mostCommon = getMostCommonBitPerPosition(binaryCounts, totalLines); // true = 1, false = 0 
+    printerr("mostCommon {any}\n.", .{mostCommon});    
     
-    for (lines.items, 0..) |line, i| {
-        for (line, 0..) |charbit, b| {
-            const isOne = charbit == '1';
-            if ((isOne and mostCommon[b]) or (!isOne and !mostCommon[b])){
-                eligible[i] = false;
-                totalEligible -= 1;
-                break;
+    outer: for (mostCommon, 0..) |mc, b| {
+        for (lines.items, 0..) |line, i| {
+            if(oxygenEligible > 1 and oxygen[i]){
+                const isOne = line[b] == '1';
+                if ((isOne and !mc) or (!isOne and mc)){
+                    oxygen[i] = false;
+                    oxygenEligible -= 1;
+                }
             }
-        }
-        if (totalEligible == 1){
-            printerr("DOWN TO ONE ANSWER!\n", .{});
-            break;
-        }
-    }
-    var finalIndex: usize = 0;
-    for (eligible, 0..) |e, i| {
-        if (e) {
-            finalIndex = i;
+            if(carbonEligible > 1 and carbon[i]){
+                const isOne = line[b] == '1';
+                if ((isOne and mc) or (!isOne and !mc)){
+                    carbon[i] = false;
+                    carbonEligible -= 1;
+                }
+            }
+            if(oxygenEligible == 1 and carbonEligible == 1) break :outer;
         }
     }
-    printerr("Final index: {}.\n", .{finalIndex});
-
+    
+    var oxygenIndex: usize = 0;
+    var carbonIndex: usize = 0;
+    for (oxygen, carbon, 0..) |o, c, i| {
+        if (o) {
+            oxygenIndex = i;
+        }
+        if (c) {
+            carbonIndex = i;
+        }
+    }
+    const finalOxygen = lineToInteger(lines.items[oxygenIndex]);
+    const finalCarbon = lineToInteger(lines.items[carbonIndex]);
+    const partTwoAnswer = finalOxygen * finalCarbon;
+    printerr("Part Two: {}.\n", .{partTwoAnswer});
 }
