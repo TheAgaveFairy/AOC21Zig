@@ -2,9 +2,9 @@ const std = @import("std");
 const heap = std.heap;
 const printerr = std.debug.print;
 
-const BITS = 12;
+const BITS = 5; //5 for day3test.txt
 
-fn lineToInteger(line: [12]u8) u32 {
+fn lineToInteger(line: [BITS]u8) u32 {
     var i: u5 = 0;
     const length: u5 = line.len;
     var answer: u32 = 0;
@@ -19,30 +19,29 @@ fn lineToInteger(line: [12]u8) u32 {
 
 fn partOneProcessing(binaryCounts: [BITS]usize, totalLines: usize) u32 {
     var gamma: u32 = 0;
-    var epsilon: u32 = 0;
     const threshold = totalLines / 2;    
-
-    for (binaryCounts, 0..) |bin, i| {
-        const shift: u5 = @intCast(i);
+    var i: u5 = 0;
+    
+    for (binaryCounts) |bin| {
         if (bin > threshold){
-            gamma += @as(u32,1) << shift;
-        } else {
-            epsilon += @as(u32,1) << shift;
+            const t: u5 = @as(u5, BITS) - i - 1;
+            gamma += @as(u32,1) << t;
         }
+        i += 1;
     }
     return gamma;
 }
 
 fn getInverseBinary(gamma: u32) u32 {
-    const mask = (@as(u32,1) << BITS) - 1;  // 12 is a magic number because each line is 12 bits. not ideal.
-    return (~gamma & mask); // it's so nice to have bitwise operators!
+    const mask = (@as(u32,1) << BITS) - 1;
+    return (~gamma & mask); // it's so nice to have bitwise operators! XOR ^
 }
 
 fn getMostCommonBitPerPosition(binaryCounts: [BITS]usize, totalLines: usize) [BITS]bool {
     var mostCommon = [_]bool{false} ** BITS;
     const threshold = totalLines / 2;
     for (binaryCounts, 0..) |count, i| {
-        if (count > threshold) {
+        if (count >= threshold) {
             mostCommon[i] = true;
         }
     }
@@ -50,7 +49,7 @@ fn getMostCommonBitPerPosition(binaryCounts: [BITS]usize, totalLines: usize) [BI
 }
 
 pub fn main() !void {
-    var file = try std.fs.cwd().openFile("../inputs/day3.txt", .{});
+    var file = try std.fs.cwd().openFile("../inputs/day3test.txt", .{});
     defer file.close();
 
     var gpa = heap.GeneralPurposeAllocator(.{}){}; // probably fine to use page_alloc tbh but whatever
@@ -63,13 +62,13 @@ pub fn main() !void {
         
     var binaryCounts = [_]usize{0} ** BITS;
 
-    const LineBuffer = [12]u8;
+    const LineBuffer = [BITS]u8;
     var lines = std.ArrayList(LineBuffer).init(allocator);
     defer lines.deinit();
 
     while (try in_stream.readUntilDelimiterOrEof(&buf, '\n')) |line| {
         var temp_line: LineBuffer = undefined;
-        @memcpy(temp_line[0..line.len], line);
+        @memcpy(temp_line[0..BITS], line);
         try lines.append(temp_line);
         for (line, 0..) |byte, i| {
             if (byte == '1'){
@@ -77,12 +76,11 @@ pub fn main() !void {
             }
         }
     }
-
-
+    
     const totalLines = lines.items.len;
     const gamma = partOneProcessing(binaryCounts, totalLines);
     const epsilon = getInverseBinary(gamma);
-    printerr("Part One: {} * {} = {}.\n", .{gamma, epsilon, gamma * epsilon});
+    printerr("Part One {} lines: {} * {} = {}.\n", .{totalLines, gamma, epsilon, gamma * epsilon});
     
     // THUS BEGAN PART TWO IN EARNEST
 
@@ -97,32 +95,56 @@ pub fn main() !void {
         value.* = true;
     }
     
- 
-    var oxygenEligible: usize = totalLines; //answer is when we're down to one
-    var carbonEligible: usize = totalLines; //answer is when we're down to one
-    const mostCommon = getMostCommonBitPerPosition(binaryCounts, totalLines); // true = 1, false = 0 
-    printerr("mostCommon {any}\n.", .{mostCommon});    
-    
-    outer: for (mostCommon, 0..) |mc, b| {
-        for (lines.items, 0..) |line, i| {
+    var oxygenEligible: usize = totalLines; // answer is when we're down to one
+    var carbonEligible: usize = totalLines; // 
+    var oxyThresh = oxygenEligible / 2;     // must be over this
+    var carThresh = carbonEligible / 2;     // 
+    for (0..BITS) |b| {
+        var oxyLinesCount: usize = 0;
+        var carLinesCount: usize = 0;
+        var oxyOnes: usize = 0;
+        var carOnes: usize = 0;
+        for (lines.items, 0..) |line, i|{
+            if(oxygen[i]) {
+                oxyLinesCount += 1;
+                if(line[b] == '1'){
+                    oxyOnes += 1;
+                }
+            }
+            if(carbon[i]) {
+                carLinesCount += 1;
+                if(line[b] == '1'){
+                    carOnes += 1;
+                }
+            }
+        }
+        oxyThresh = oxyLinesCount / 2;
+        carThresh = carLinesCount / 2;
+        const mostCommonOxy: u8 = if(oxyOnes > oxyThresh or (oxyOnes == oxyThresh and oxyThresh % 2 == 0)) '1' else '0';
+        const lessCommonCar: u8 = if(mostCommonOxy == '1') '0' else '1';
+        printerr("Thresholds: {} and {}\n", .{oxyThresh, carThresh});
+        for (lines.items, 0..) |line, i|{
             if(oxygenEligible > 1 and oxygen[i]){
-                const isOne = line[b] == '1';
-                if ((isOne and !mc) or (!isOne and mc)){
-                    oxygen[i] = false;
+                if(line[b] == mostCommonOxy){
+                    oxyLinesCount += 1;
+                } else {
                     oxygenEligible -= 1;
+                    oxygen[i] = false;
                 }
             }
             if(carbonEligible > 1 and carbon[i]){
-                const isOne = line[b] == '1';
-                if ((isOne and mc) or (!isOne and !mc)){
-                    carbon[i] = false;
+                if(line[b] == lessCommonCar){
+                    carLinesCount += 1;
+                } else {
                     carbonEligible -= 1;
+                    carbon[i] = false;
                 }
             }
-            if(oxygenEligible == 1 and carbonEligible == 1) break :outer;
+            if(oxygen[i] or true) printerr("{}\t{s} O{} C{}\n", .{i, line, oxygen[i], carbon[i]});
+            if(oxygenEligible == 1 and carbonEligible == 1) break;
         }
     }
-    
+
     var oxygenIndex: usize = 0;
     var carbonIndex: usize = 0;
     for (oxygen, carbon, 0..) |o, c, i| {
@@ -133,8 +155,14 @@ pub fn main() !void {
             carbonIndex = i;
         }
     }
-    const finalOxygen = lineToInteger(lines.items[oxygenIndex]);
-    const finalCarbon = lineToInteger(lines.items[carbonIndex]);
-    const partTwoAnswer = finalOxygen * finalCarbon;
+
+    const oxygenLine = lines.items[oxygenIndex];
+    const carbonLine = lines.items[carbonIndex];
+    //printerr("OL: {any} C: {any}\n", .{oxygenLine, carbonLine});
+
+    const oxygenAns = lineToInteger(oxygenLine);
+    const carbonAns = lineToInteger(carbonLine);
+    printerr("O: {} C: {}\n", .{oxygenAns, carbonAns});
+    const partTwoAnswer = oxygenAns * carbonAns;
     printerr("Part Two: {}.\n", .{partTwoAnswer});
 }
