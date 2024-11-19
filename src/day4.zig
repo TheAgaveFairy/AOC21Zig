@@ -58,6 +58,16 @@ const Board = struct {
         }
         return sum;
     }
+
+    pub fn print(self: *Board) void {
+        for (self.grid, 0..) |row, i| {
+            for (row, 0..) |_, j| {
+                const cell: usize = if (self.marked[i][j]) 0 else self.grid[i][j];
+                printerr("{d:3}", .{cell});
+            }
+            printerr("\n", .{});
+        }
+    }
 };
 
 fn readBoards(allocator: std.mem.Allocator, reader: anytype) !std.ArrayList(Board){
@@ -136,6 +146,7 @@ pub fn main() !void {
     var losers_left: usize = boards.items.len;
     logic: for (wheel_nums.items) |wn| { // absolutely could've done this at read time!
         for (boards.items) |*board| {
+            if (board.won) continue;
             board.mark(wn);
             if (board.checkWin()) {
                 losers_left -= 1;
