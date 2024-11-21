@@ -1,7 +1,7 @@
 const std = @import("std");
 const printerr = std.debug.print;
 
-const N = 10; // 1000 or so for the real run
+const N = 1000; // 1000 or so for the real run
 
 const Direction = enum {
     horizontal,
@@ -44,14 +44,14 @@ const Diagram = struct {
                 const y = vent.start.y;
                 const start = @min(vent.start.x, vent.end.x);
                 const end = @max(vent.start.x, vent.end.x);
-                for (start..end+1) |x| self.grid[x][y] += 1;
+                for (start..end+1) |x| self.grid[y][x] += 1;
             },
 
             .vertical => {
                 const x = vent.start.x;
                 const start = @min(vent.start.y, vent.end.y);
                 const end = @max(vent.start.y, vent.end.y);
-                for (start..end+1) |y| self.grid[x][y] += 1;  
+                for (start..end+1) |y| self.grid[y][x] += 1;  
             },
 
             .diagonal => {}, // part 2
@@ -59,12 +59,21 @@ const Diagram = struct {
     }
 
     pub fn print(self: *Diagram) void {
-        for (0..N) |x| {
-            for (0..N) |y| {
-                printerr("{d:5}", .{self.grid[x][y]});
+        for (0..N) |y| { // i wasn't thinking and forgot that y moves us down the rows, x across cols
+            for (0..N) |x| {
+                printerr("{d:5}", .{self.grid[y][x]});
             }
             printerr("\n", .{});
         }
+    }
+    pub fn sumOverThreshold(self: *Diagram, threshold: usize) usize {
+        var sum: usize = 0;
+        for (0..N) |y| { // y moves us down the rows, x across cols
+            for (0..N) |x| {
+                if(self.grid[y][x] >= threshold) sum += 1;
+            }
+        }
+        return sum;
     }
 };
 
@@ -79,7 +88,7 @@ fn readVents(allocator: std.mem.Allocator, reader: anytype) !std.ArrayList(Vent)
         const second_pair = coords_iter.next().?;
         const start_coord: Coordinate = try parseCoordinate(first_pair);
         const end_coord: Coordinate = try parseCoordinate(second_pair);
-        printerr("First: {s}. Second: {s}\n", .{first_pair, second_pair});
+        //printerr("Start: {d:3}, {d:3}. End: {d:3}, {d:3}.\n", .{start_coord.x, start_coord.y, end_coord.x, end_coord.y});
         const vent: Vent = Vent{
             .start = start_coord,
             .end = end_coord,
@@ -90,7 +99,7 @@ fn readVents(allocator: std.mem.Allocator, reader: anytype) !std.ArrayList(Vent)
 }
 
 fn partOne(allocator: std.mem.Allocator) !usize {
-    const infilename = "../inputs/day5test.txt";
+    const infilename = "../inputs/day5.txt";
 
     var infile = try std.fs.cwd().openFile(infilename, .{});
     defer infile.close();
@@ -107,8 +116,9 @@ fn partOne(allocator: std.mem.Allocator) !usize {
         diagram.markVent(vent);    
     }
 
-    diagram.print();
-    return 69;
+    //diagram.print();
+    const answer = diagram.sumOverThreshold(2);
+    return answer;
 }
 
 pub fn main() !void {
