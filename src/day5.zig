@@ -6,7 +6,8 @@ const N = 1000; // 1000 or so for the real run
 const Direction = enum {
     horizontal,
     vertical,
-    diagonal,
+    pos_diagonal, // ex 1,3 -> 2,4
+    neg_diagonal, // ex 4,0 -> 2,2
 };
 
 const Coordinate = struct {
@@ -30,7 +31,13 @@ const Vent = struct {
     pub fn getDirection(self: Vent) Direction {
         if (self.start.x == self.end.x) return .vertical;
         if (self.start.y == self.end.y) return .horizontal;
-        return .diagonal;
+        if (self.start.x < self.end.x) {
+            if (self.start.y < self.end.y) return .pos_diagonal;
+            return .neg_diagonal;
+        } else {
+            if (self.start.y > self.end.y) return .pos_diagonal;
+            return .neg_diagonal;
+        }
     }
 };
 
@@ -54,14 +61,35 @@ const Diagram = struct {
                 for (start..end+1) |y| self.grid[y][x] += 1;  
             },
 
-            .diagonal => {}, // part 2
+            .pos_diagonal => { // comment out if you just want part one
+                const startx = @min(vent.start.x, vent.end.x);
+                const endx   = @max(vent.start.x, vent.end.x);
+                const starty = @min(vent.start.y, vent.end.y);
+                //const endy   = @max(vent.start.y, vent.end.y);
+                const distance = endx - startx; // == endy - starty
+                //printerr("posdiag: x{} y{} len {}\n", .{startx, starty, distance});
+                for (0..distance+1) |k| {
+                    self.grid[starty + k][startx + k] += 1; 
+                }
+            },
+            
+            .neg_diagonal => {
+                const startx = @min(vent.start.x, vent.end.x);
+                const endx   = @max(vent.start.x, vent.end.x);
+                const starty = @max(vent.start.y, vent.end.y);
+                const distance = endx - startx;
+                //printerr("negdiag: x{} y{} len {}\n", .{startx, starty, distance});
+                for (0..distance+1) |k| {
+                    self.grid[starty - k][startx + k] += 1;
+                }
+            }
         }        
     }
 
     pub fn print(self: *Diagram) void {
         for (0..N) |y| { // i wasn't thinking and forgot that y moves us down the rows, x across cols
             for (0..N) |x| {
-                printerr("{d:5}", .{self.grid[y][x]});
+                printerr("{d:2}", .{self.grid[y][x]});
             }
             printerr("\n", .{});
         }
@@ -106,7 +134,6 @@ fn partOne(allocator: std.mem.Allocator) !usize {
 
     var buf_reader = std.io.bufferedReader(infile.reader());
     const instream = buf_reader.reader();
-
     
     const vent_list = try readVents(allocator, instream);
     defer _ = vent_list.deinit();
@@ -116,7 +143,7 @@ fn partOne(allocator: std.mem.Allocator) !usize {
         diagram.markVent(vent);    
     }
 
-    //diagram.print();
+    if (N == 10) diagram.print();
     const answer = diagram.sumOverThreshold(2);
     return answer;
 }
@@ -128,6 +155,7 @@ pub fn main() !void {
 
     const part_one_answer = try partOne(allocator);
     
-    printerr("Part One Answer: {}\n", .{part_one_answer});
+    printerr("Part One Answer: tldr you ain't getting it right now! hehe\n", .{});
+    printerr("Part Two Answer: {}\n", .{part_one_answer});
 
 }
