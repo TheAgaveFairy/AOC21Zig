@@ -29,10 +29,14 @@ fn readFile(allocator: std.mem.Allocator) !std.ArrayList(u16) {
     return fishes;
 }
 
-fn calcCost(positions: []usize, cost_point:usize) usize {
+fn getDistance(i: usize, p: usize) usize {
+    return if (i > p) i - p else p - i;
+}
+
+fn calcCost(positions: []usize, p: usize) usize {
     var total: usize = 0;
     for (positions, 0..) |count, i| {
-        const distance = @abs(@as(isize, i) - @as(isize, cost_point));
+        const distance = getDistance(i,p);
         total += distance * count;
     }
     return total;
@@ -51,7 +55,7 @@ fn partOne(allocator: std.mem.Allocator) !usize {
     defer allocator.free(positions);
 
     for (crabs.items) |crab| positions[crab] += 1;
-    printerr("{}\n", .{calcCost(positions,8)});
+    printerr("{}\n", .{calcCost(positions,2)});
     return 1337;
 }
 
