@@ -16,7 +16,7 @@ fn readFile(allocator: std.mem.Allocator) !std.ArrayList(u16) {
 
     var fishes = std.ArrayList(u16).init(allocator); // copying code from day 6 about lanternfish!
 
-    var buf: [1024]u8 = undefined;
+    var buf: [4096]u8 = undefined;
     const line = try instream.readUntilDelimiterOrEof(&buf, '\n') orelse unreachable;
     const trimmed_line = std.mem.trim(u8, line, " ");
 
@@ -29,8 +29,18 @@ fn readFile(allocator: std.mem.Allocator) !std.ArrayList(u16) {
     return fishes;
 }
 
-fn getDistance(i: usize, p: usize) usize {
+inline fn getDistance(i: usize, p: usize) usize {
     return if (i > p) i - p else p - i;
+}
+
+fn calcCostTwo(positions: []usize, p: usize) usize {
+    var total: usize = 0;
+    for (positions, 0..) |count, i| {
+        const distance = getDistance(i,p);
+        const sum_distances = distance * (distance + 1) / 2;
+        total += sum_distances * count;
+    }
+    return total;
 }
 
 fn calcCost(positions: []usize, p: usize) usize {
@@ -55,8 +65,23 @@ fn partOne(allocator: std.mem.Allocator) !usize {
     defer allocator.free(positions);
 
     for (crabs.items) |crab| positions[crab] += 1;
-    printerr("{}\n", .{calcCost(positions,2)});
-    return 1337;
+
+    var left: usize = 0;
+    var right = furthest;
+    var cost_nxt: usize = 0;
+    while (left < right) {
+        const mid = left + (right-left) / 2;
+        const cost_mid = calcCostTwo(positions, mid); // change these to just calcCost for pt 1, im lazy
+        cost_nxt = calcCostTwo(positions, mid + 1);
+    
+        if (cost_mid > cost_nxt) {
+            left = mid + 1;
+        } else {
+            right = mid;
+        }
+    }
+    printerr("l{} r{} costmid{}\n", .{left,right,cost_nxt});
+    return cost_nxt;
 }
 
 pub fn main() !void {
