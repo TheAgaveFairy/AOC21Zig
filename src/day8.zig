@@ -25,8 +25,8 @@ const Display = struct {
     //  6666
 
     pub fn setMapping(self: *Display, num_to_set: usize, chars: []u8) void {
-        std.debug.assert(chars.len == self.segments[num_to_set].len);
-        for (chars, self.segments[num_to_set]) |c, i| self.mapping[i] = c;
+        std.debug.assert(chars.len == Display.segments[num_to_set].len);
+        for (chars, Display.segments[num_to_set]) |c, i| self.mapping[i] = c;
     }
 
     fn inPattern(self: *Display, pattern: []usize, chars: []u8) bool {
@@ -168,11 +168,11 @@ const Signal = struct {
                 4 => display.setMapping(4, pat),
                 7 => display.setMapping(8, pat),
                 5 => {
-                    @memcpy(fives[five_idx], pat);
+                    @memcpy(fives[five_idx][0..5], pat[0..5]);
                     five_idx += 1;
                 },
                 6 => {
-                    @memcpy(sixes[six_idx], pat);
+                    @memcpy(sixes[six_idx][0..6], pat[0..6]);
                     six_idx += 1;
                 },
                 else => unreachable,
