@@ -24,15 +24,15 @@ const Display = struct {
     // 4    5
     //  6666
 
-    pub fn setMapping(self: *Display, num_to_set: usize, chars: []u8) void {
+    pub fn setMapping(self: *Display, num_to_set: usize, chars: []const u8) void {
         std.debug.assert(chars.len == Display.segments[num_to_set].len);
         for (chars, Display.segments[num_to_set]) |c, i| self.mapping[i] = c;
     }
 
-    fn inPattern(self: *Display, pattern: []const usize, chars: []u8) bool {
+    fn inPattern(self: *Display, pattern: []const usize, chars: []const u8) bool {
         for (pattern) |idx| { // example 1 gives 2 and 5, use with mapping to get their set chars
             const key_char = self.mapping[idx];
-            const found = std.mem.containsAtLeast(u8, key_char, 1, chars);
+            const found = std.mem.containsAtLeast(u8, &[_]u8{key_char}, 1, chars);
             if (!found) return false;
         }
         return true;
@@ -43,10 +43,13 @@ const Display = struct {
         // 2 and 3 differ on (4) vs (5). 5 only shares (0,3,6)
 
         // 3 shares with 1 uniquely
-        for (fives) |pat| {
-            if (inPattern(self, Display.segments[1], pat)) {
-                self.setMapping(3, pat);
+        //var three_idx: usize = 0;
+        for (fives, 0..) |pat, i| {
+            if (inPattern(self, Display.segments[1], &pat)) {
+                self.setMapping(3, &pat);
             }
+            _ = i;
+            //printerr("num chars set: {}\n", .{self.checkStatus()});
         }
     }
     pub fn dealWithSixes(self: *Display, sixes: [3][6]u8) void {
@@ -54,10 +57,19 @@ const Display = struct {
         // 6 and 9 share (3) and differ on (2) vs (4).
         for (sixes) |pat| {
             //const testing = [_]usize{ 3, 4 };
-            if (inPattern(self, Display.segments[1], pat) and false) { // this is boilerplate - NOT CORRECT NOR ROBUST AND IS ERROR-PRONE
+            if (inPattern(self, Display.segments[1], &pat) and false) { // this is boilerplate - NOT CORRECT NOR ROBUST AND IS ERROR-PRONE
                 self.setMapping(6, pat);
             }
+            //printerr("num chars set: {}\n", .{self.checkStatus()});
         }
+    }
+
+    pub fn checkStatus(self: *Display) usize {
+        var count: usize = 0;
+        for (self.mapping) |c| {
+            if (std.ascii.isAlphabetic(c)) count += 1;
+        }
+        return count;
     }
 
     pub fn print(self: Display) void {
@@ -69,6 +81,7 @@ const Display = struct {
             \\ 4    5
             \\ 4    5
             \\  6666
+            \\
         ;
         for (template) |c| {
             if (std.ascii.isDigit(c)) {
@@ -79,6 +92,7 @@ const Display = struct {
                 printerr("{c}", .{c});
             }
         }
+        printerr("\n", .{});
     }
 };
 
@@ -180,6 +194,7 @@ const Signal = struct {
                 else => unreachable,
             }
         }
+        printerr("num chars set: {}\n", .{display.checkStatus()});
         display.dealWithFives(fives);
         display.dealWithSixes(sixes);
         display.print();
@@ -188,7 +203,7 @@ const Signal = struct {
 };
 
 fn readFile(allocator: std.mem.Allocator) !std.ArrayList(Signal) {
-    const infilename = "../inputs/day8.txt";
+    const infilename = "../inputs/day8test.txt";
     var infile = try std.fs.cwd().openFile(infilename, .{});
     defer infile.close();
 
