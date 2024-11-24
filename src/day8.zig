@@ -29,7 +29,7 @@ const Display = struct {
         for (chars, Display.segments[num_to_set]) |c, i| self.mapping[i] = c;
     }
 
-    fn inPattern(self: *Display, pattern: []usize, chars: []u8) bool {
+    fn inPattern(self: *Display, pattern: []const usize, chars: []u8) bool {
         for (pattern) |idx| { // example 1 gives 2 and 5, use with mapping to get their set chars
             const key_char = self.mapping[idx];
             const found = std.mem.containsAtLeast(u8, key_char, 1, chars);
@@ -44,22 +44,23 @@ const Display = struct {
 
         // 3 shares with 1 uniquely
         for (fives) |pat| {
-            if (inPattern(segments[1], pat)) {
+            if (inPattern(self, Display.segments[1], pat)) {
                 self.setMapping(3, pat);
             }
         }
     }
-    pub fn dealWithSixes(self: *Display, sixes: [3][5]u8) void {
+    pub fn dealWithSixes(self: *Display, sixes: [3][6]u8) void {
         // 0 6 9
         // 6 and 9 share (3) and differ on (2) vs (4).
         for (sixes) |pat| {
-            if (inPattern(.{ 3, 4 }, pat)) { // this is boilerplate - NOT CORRECT NOR ROBUST AND IS ERROR-PRONE
+            //const testing = [_]usize{ 3, 4 };
+            if (inPattern(self, Display.segments[1], pat) and false) { // this is boilerplate - NOT CORRECT NOR ROBUST AND IS ERROR-PRONE
                 self.setMapping(6, pat);
             }
         }
     }
 
-    pub fn print(self: *Display) void {
+    pub fn print(self: Display) void {
         const template =
             \\  0000
             \\ 1    2
@@ -71,7 +72,8 @@ const Display = struct {
         ;
         for (template) |c| {
             if (std.ascii.isDigit(c)) {
-                const idx = try std.fmt.parseInt(u4, c, 10); // u4 to feel ~special
+                //const idx = try std.fmt.parseInt(u4, c, 10); // u4 to feel ~special
+                const idx = c - '0';
                 printerr("{c}", .{self.mapping[idx]});
             } else {
                 printerr("{c}", .{c});
@@ -156,8 +158,8 @@ const Signal = struct {
     pub fn buildDisplay(self: *Signal) Display {
         var display: Display = undefined;
 
-        const fives = [3][5]u8; // @memcpy will mutate
-        const sixes = [3][6]u8; // @memcpy will mutate
+        var fives: [3][5]u8 = undefined; // @memcpy will mutate
+        var sixes: [3][6]u8 = undefined; // @memcpy will mutate
         var five_idx: usize = 0;
         var six_idx: usize = 0;
 
@@ -168,11 +170,11 @@ const Signal = struct {
                 4 => display.setMapping(4, pat),
                 7 => display.setMapping(8, pat),
                 5 => {
-                    @memcpy(fives[five_idx][0..5], pat[0..5]);
+                    @memcpy(&fives[five_idx], pat);
                     five_idx += 1;
                 },
                 6 => {
-                    @memcpy(sixes[six_idx][0..6], pat[0..6]);
+                    @memcpy(&sixes[six_idx], pat);
                     six_idx += 1;
                 },
                 else => unreachable,
