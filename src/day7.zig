@@ -7,7 +7,7 @@ const Fish = struct {
 };
 
 fn readFile(allocator: std.mem.Allocator) !std.ArrayList(u16) {
-    const infilename = "../inputs/day7test.txt";
+    const infilename = "../inputs/day7.txt";
     var infile = try std.fs.cwd().openFile(infilename, .{});
     defer infile.close();
 
@@ -69,9 +69,10 @@ fn partOne(allocator: std.mem.Allocator) !usize {
     var left: usize = 0;
     var right = furthest;
     var cost_nxt: usize = 0;
+    var cost_mid: usize = 0;
     while (left < right) {
         const mid = left + (right-left) / 2;
-        const cost_mid = calcCostTwo(positions, mid); // change these to just calcCost for pt 1, im lazy
+        cost_mid = calcCostTwo(positions, mid); // change these to just calcCost for pt 1, im lazy
         cost_nxt = calcCostTwo(positions, mid + 1);
     
         if (cost_mid > cost_nxt) {
@@ -79,9 +80,9 @@ fn partOne(allocator: std.mem.Allocator) !usize {
         } else {
             right = mid;
         }
+        printerr("l{} r{} costmid{}\n", .{left,right,cost_nxt});
     }
-    printerr("l{} r{} costmid{}\n", .{left,right,cost_nxt});
-    return cost_nxt;
+    return cost_mid;
 }
 
 pub fn main() !void {
