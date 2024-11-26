@@ -16,6 +16,7 @@ const Display = struct {
         &[_]usize{ 0, 1, 2, 3, 5, 6 },
     };
 
+    // mapping uses the following:
     //  0000
     // 1    2
     // 1    2
@@ -23,53 +24,30 @@ const Display = struct {
     // 4    5
     // 4    5
     //  6666
+    //  i.e. if mapping[3] = 'd' then the middle bar is 'd's (nuts)
 
-    pub fn setMapping(self: *Display, num_to_set: usize, chars: []const u8) void {
-        std.debug.assert(chars.len == Display.segments[num_to_set].len);
-        for (chars, Display.segments[num_to_set]) |c, i| self.mapping[i] = c;
-    }
-
-    fn inPattern(self: *Display, pattern: []const usize, chars: []const u8) bool {
-        for (pattern) |idx| { // example 1 gives 2 and 5, use with mapping to get their set chars
-            const key_char = self.mapping[idx];
-            const found = std.mem.containsAtLeast(u8, &[_]u8{key_char}, 1, chars);
-            if (!found) return false;
-        }
-        return true;
-    }
-
-    pub fn dealWithFives(self: *Display, fives: [3][5]u8) void {
-        // 2 3 5
-        // 2 and 3 differ on (4) vs (5). 5 only shares (0,3,6)
-
-        // 3 shares with 1 uniquely
-        //var three_idx: usize = 0;
-        for (fives, 0..) |pat, i| {
-            if (inPattern(self, Display.segments[1], &pat)) {
-                self.setMapping(3, &pat);
-            }
-            _ = i;
-            //printerr("num chars set: {}\n", .{self.checkStatus()});
-        }
-    }
-    pub fn dealWithSixes(self: *Display, sixes: [3][6]u8) void {
-        // 0 6 9
-        // 6 and 9 share (3) and differ on (2) vs (4).
-        for (sixes) |pat| {
-            //const testing = [_]usize{ 3, 4 };
-            if (inPattern(self, Display.segments[1], &pat) and false) { // this is boilerplate - NOT CORRECT NOR ROBUST AND IS ERROR-PRONE
-                self.setMapping(6, pat);
-            }
-            //printerr("num chars set: {}\n", .{self.checkStatus()});
-        }
-    }
-
+    /// returns the number of solved segments
     pub fn checkStatus(self: *Display) usize {
         var count: usize = 0;
         for (self.mapping) |c| {
             if (std.ascii.isAlphabetic(c)) count += 1;
         }
         return count;
+    }
+
+    fn getIndex(self: *Display, char: u8) ?usize {
+        for (self.mapping, 0..) |c, i| {
+            if (char == c) return i;
+        }
+        return null;
+    }
+
+    pub fn decodePatternToNum(self: *Display, pattern: []const u8) usize {
+        for (pattern) |p| {
+            const idx_test = self.getIndex(p) orelse unreachable;
+            printerr("TEST: {c} at {}\n", .{ p, idx_test });
+        }
+        return 9001;
     }
 
     pub fn print(self: Display) void {
@@ -83,6 +61,7 @@ const Display = struct {
             \\  6666
             \\
         ;
+
         for (template) |c| {
             if (std.ascii.isDigit(c)) {
                 //const idx = try std.fmt.parseInt(u4, c, 10); // u4 to feel ~special
@@ -96,6 +75,7 @@ const Display = struct {
     }
 };
 
+/// TODO: make 10 and 4 global consts or struct consts or something
 const Signal = struct {
     patterns: [10][]u8,
     outputs: [4][]u8,
@@ -132,6 +112,7 @@ const Signal = struct {
             signal.patterns[i] = try allocator.dupe(u8, p);
         }
         std.debug.assert(i == 10);
+
         // Outputs
         i = 0;
         while (outputs_iter.next()) |o| : (i += 1) {
@@ -149,6 +130,7 @@ const Signal = struct {
         printerr("\n", .{});
     }
 
+    /// part one
     fn isUnique(pattern: []u8) bool {
         const answer = switch (pattern.len) {
             2 => true, // 1
@@ -157,10 +139,39 @@ const Signal = struct {
             7 => true, // 8
             else => false,
         };
-        //printerr("{}:{} {s}\n", .{ pattern.len, answer, pattern });
         return answer;
     }
 
+    /// returns the missing letter from the haystack
+    pub fn oddOneOut(smaller: []const u8, larger: []const u8) ?u8 {
+        for (larger) |l| {
+            var found = false;
+            for (smaller) |s| {
+                if (l == s) found = true;
+            }
+            if (!found) return l;
+        }
+        return null;
+    }
+
+    /// returns the actual character differences
+    pub fn differenceBetweenSets(allocator: std.mem.Allocator, smaller: []const u8, larger: []const u8) !std.ArrayList(u8) {
+        var different = std.ArrayList(u8).init(allocator);
+        for (larger) |lg| {
+            var found = false;
+            for (smaller) |sm| {
+                if (sm == lg) {
+                    found = true;
+                }
+            }
+            if (!found) {
+                try different.append(lg);
+            }
+        }
+        return different;
+    }
+
+    /// core functionality for part one
     pub fn countUniques(self: *Signal) usize {
         var count: usize = 0;
         for (self.outputs) |o| {
@@ -169,7 +180,8 @@ const Signal = struct {
         return count;
     }
 
-    pub fn buildDisplay(self: *Signal) Display {
+    /// TODO: move to Display struct
+    pub fn buildDisplay(self: *Signal) !Display {
         var display: Display = undefined;
 
         var fives: [3][5]u8 = undefined; // @memcpy will mutate
@@ -177,12 +189,17 @@ const Signal = struct {
         var five_idx: usize = 0;
         var six_idx: usize = 0;
 
+        var one_chars = [_]u8{0} ** 2;
+        var four_chars = [_]u8{0} ** 4;
+        var seven_chars = [_]u8{0} ** 3;
+        var eight_chars = [_]u8{0} ** 7; // all chars, useful later
+
         for (self.patterns) |pat| {
             switch (pat.len) { // the unique lens
-                2 => display.setMapping(1, pat),
-                3 => display.setMapping(7, pat),
-                4 => display.setMapping(4, pat),
-                7 => display.setMapping(8, pat),
+                2 => @memcpy(&one_chars, pat), // display.setMapping(1, pat),
+                3 => @memcpy(&seven_chars, pat),
+                4 => @memcpy(&four_chars, pat),
+                7 => @memcpy(&eight_chars, pat),
                 5 => {
                     @memcpy(&fives[five_idx], pat);
                     five_idx += 1;
@@ -194,10 +211,74 @@ const Signal = struct {
                 else => unreachable,
             }
         }
-        printerr("num chars set: {}\n", .{display.checkStatus()});
-        display.dealWithFives(fives);
-        display.dealWithSixes(sixes);
-        display.print();
+
+        display.mapping[0] = Signal.oddOneOut(&one_chars, &seven_chars) orelse unreachable;
+
+        var one_three_candidates = [_]u8{0} ** 2; // segments one and three are in four but not one
+        var idx: u2 = 0;
+        for (four_chars) |four| {
+            var found: bool = false;
+            for (one_chars) |one| {
+                if (one == four) found = true;
+            }
+            if (!found) {
+                one_three_candidates[idx] = four;
+                idx += 1;
+            }
+        }
+
+        // 4 segs are a subset of 9s. this will now reveal segment 6!
+        for (sixes) |six_chars| { // bad naming - six_chars contains the chars of signal patterns of *length* six
+            var found_count: usize = 0;
+            for (four_chars) |fc| {
+                var found = false;
+                for (six_chars) |sc| {
+                    if (sc == fc) found = true;
+                }
+                if (found) found_count += 1;
+            }
+            if (found_count == 4) { // found all shared segments between 4 and 9, odd one out is segment 6
+                for (six_chars) |sc| { // this (six_chars) is the number 9! (the chars of a pattern of len 6)
+                    var found = false;
+                    if (sc == display.mapping[0]) continue;
+                    for (four_chars) |fc| {
+                        if (fc == sc) found = true;
+                    }
+                    if (!found) display.mapping[6] = sc;
+                }
+                display.mapping[4] = Signal.oddOneOut(&six_chars, &eight_chars) orelse unreachable;
+            }
+
+            //TODO: this is the only part that can error. maybe i could avoid that?
+            // o/w found_count == 3, for digits 0 and 6
+            const difference = try differenceBetweenSets(self.allocator, &six_chars, &one_chars); // 0 overlaps with 1 two times. 6 once.
+            defer difference.deinit();
+            if (difference.items.len == 1) { // we've found digit 6
+                display.mapping[2] = difference.items[0]; //Signal.oddOneOut(&six_chars, &one_chars) orelse unreachable;
+            } else if (difference.items.len == 0) { // we've found digit 0
+                display.mapping[3] = Signal.oddOneOut(&six_chars, &eight_chars) orelse unreachable;
+            } else {
+                printerr("UNREACHABLE: {}\n", .{difference.items.len});
+                for (difference.items) |d| printerr("{c} ", .{d});
+            }
+        }
+
+        // at this point we only needs segments 1 and 5
+
+        // segment 5 is the other letter of one
+        for (one_chars) |c| {
+            if (c != display.mapping[2]) display.mapping[5] = c;
+        }
+
+        // one remaining
+        for (eight_chars) |e| {
+            var found = false;
+            for (display.mapping) |d| {
+                if (e == d) found = true;
+            }
+            if (!found) display.mapping[1] = e;
+        }
+        //display.print();
         return display;
     }
 };
@@ -240,8 +321,9 @@ fn partTwo(allocator: std.mem.Allocator) !usize {
     defer for (signals.items) |*sig| sig.deinit();
 
     for (signals.items) |*sig| {
-        const display = sig.buildDisplay();
+        var display = try sig.buildDisplay();
         display.print();
+        _ = display.decodePatternToNum(sig.outputs[0]);
     }
     return 420;
 }
