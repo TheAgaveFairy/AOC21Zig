@@ -36,9 +36,12 @@ const Display = struct {
     }
 
     fn getIndex(self: *Display, char: u8) ?usize {
+        var test_tracking: u8 = 0;
         for (self.mapping, 0..) |c, i| {
+            test_tracking = c;
             if (char == c) return i;
         }
+        printerr("how did we get here i{c} m{c}\n", .{ char, test_tracking });
         return null;
     }
 
@@ -246,6 +249,22 @@ const Signal = struct {
                     }
                     if (!found) display.mapping[6] = sc;
                 }
+                //
+                //
+                //
+                //
+                //
+                //
+                //
+                //
+                //
+                //
+                //
+                //
+                //
+                //
+                //
+                // apparently this might be wrong
                 display.mapping[4] = Signal.oddOneOut(&six_chars, &eight_chars) orelse unreachable;
             }
 
@@ -256,6 +275,13 @@ const Signal = struct {
             if (difference.items.len == 1) { // we've found digit 6
                 display.mapping[2] = difference.items[0]; //Signal.oddOneOut(&six_chars, &one_chars) orelse unreachable;
             } else if (difference.items.len == 0) { // we've found digit 0
+                //
+                //
+                //
+                //
+                //
+                //
+                // THIS MIGHT BE WRONG
                 display.mapping[3] = Signal.oddOneOut(&six_chars, &eight_chars) orelse unreachable;
             } else {
                 printerr("UNREACHABLE: {}\n", .{difference.items.len});
