@@ -46,11 +46,20 @@ const Display = struct {
     }
 
     pub fn decodePatternToNum(self: *Display, pattern: []const u8) usize {
+        var found = [_]bool{false} ** 7;
         for (pattern) |p| {
-            const idx_test = self.getIndex(p) orelse unreachable;
-            printerr("TEST: {c} at {}\n", .{ p, idx_test });
+            const idx = self.getIndex(p) orelse unreachable;
+            //printerr("TEST: {c} at {}\n", .{ p, idx });
+            found[idx] = true;
         }
-        return 9001;
+        outer: for (segments, 0..) |seg_list, i| { // gets one array of indices i.e. (0, 2, 5) for 7
+            if (seg_list.len != pattern.len) continue;
+            for (seg_list) |seg_idx| { // (0, 2, then 5)
+                if (!found[seg_idx]) continue :outer;
+            }
+            return i;
+        }
+        return 9001; // error the power level is too high
     }
 
     pub fn print(self: Display) void {
@@ -247,45 +256,22 @@ const Signal = struct {
                     for (four_chars) |fc| {
                         if (fc == sc) found = true;
                     }
-                    if (!found) display.mapping[6] = sc;
+                    if (!found) display.mapping[6] = sc; // we can figure out segment 6 by process of elimination
                 }
-                //
-                //
-                //
-                //
-                //
-                //
-                //
-                //
-                //
-                //
-                //
-                //
-                //
-                //
-                //
-                // apparently this might be wrong
                 display.mapping[4] = Signal.oddOneOut(&six_chars, &eight_chars) orelse unreachable;
-            }
-
-            //TODO: this is the only part that can error. maybe i could avoid that?
-            // o/w found_count == 3, for digits 0 and 6
-            const difference = try differenceBetweenSets(self.allocator, &six_chars, &one_chars); // 0 overlaps with 1 two times. 6 once.
-            defer difference.deinit();
-            if (difference.items.len == 1) { // we've found digit 6
-                display.mapping[2] = difference.items[0]; //Signal.oddOneOut(&six_chars, &one_chars) orelse unreachable;
-            } else if (difference.items.len == 0) { // we've found digit 0
-                //
-                //
-                //
-                //
-                //
-                //
-                // THIS MIGHT BE WRONG
-                display.mapping[3] = Signal.oddOneOut(&six_chars, &eight_chars) orelse unreachable;
             } else {
-                printerr("UNREACHABLE: {}\n", .{difference.items.len});
-                for (difference.items) |d| printerr("{c} ", .{d});
+                //TODO: this is the only part that can error. maybe i could avoid that?
+                // o/w found_count == 3, for digits 0 and 6
+                const difference = try differenceBetweenSets(self.allocator, &six_chars, &one_chars); // 0 overlaps with 1 two times. 6 once.
+                defer difference.deinit();
+                if (difference.items.len == 1) { // we've found digit 6
+                    display.mapping[2] = difference.items[0]; //Signal.oddOneOut(&six_chars, &one_chars) orelse unreachable;
+                } else if (difference.items.len == 0) { // we've found digit 0
+                    display.mapping[3] = Signal.oddOneOut(&six_chars, &eight_chars) orelse unreachable;
+                } else {
+                    printerr("UNREACHABLE: {}\n", .{difference.items.len});
+                    for (difference.items) |d| printerr("{c} ", .{d});
+                }
             }
         }
 
@@ -310,7 +296,7 @@ const Signal = struct {
 };
 
 fn readFile(allocator: std.mem.Allocator) !std.ArrayList(Signal) {
-    const infilename = "../inputs/day8test.txt";
+    const infilename = "../inputs/day8.txt";
     var infile = try std.fs.cwd().openFile(infilename, .{});
     defer infile.close();
 
@@ -345,13 +331,21 @@ fn partTwo(allocator: std.mem.Allocator) !usize {
     var signals = try readFile(allocator);
     defer signals.deinit();
     defer for (signals.items) |*sig| sig.deinit();
-
+    var answer: usize = 0;
     for (signals.items) |*sig| {
         var display = try sig.buildDisplay();
-        display.print();
-        _ = display.decodePatternToNum(sig.outputs[0]);
+        //display.print();
+        var current: usize = 0;
+        for (sig.outputs, 0..) |op, i| {
+            const result = display.decodePatternToNum(op);
+            //printerr("{s} : {}\n", .{ op, result });
+            const factor = 1000 / std.math.pow(usize, 10, i);
+            current += result * factor;
+        }
+        //printerr("{s} is {}\n", .{ sig.outputs, current });
+        answer += current;
     }
-    return 420;
+    return answer;
 }
 
 pub fn main() !void {
