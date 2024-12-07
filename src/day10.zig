@@ -1,42 +1,61 @@
 const std = @import("std");
 const printerr = std.debug.print;
 
+inline fn getPair(char: u8) u8 {
+    return switch (char) {
+        ')' => '(',
+        ']' => '[',
+        '}' => '{',
+        '>' => '<',
+        '(' => ')',
+        '[' => ']',
+        '{' => '}',
+        '<' => '>',
+        else => unreachable,
+    };
+}
+
 fn processLine(allocator: std.mem.Allocator, line: []const u8) !usize {
     var stack = std.ArrayList(u8).init(allocator);
     defer stack.deinit();
 
     for (line) |char| {
-        printerr("{c} ", .{char});
+        //printerr("{c} ", .{char});
         if (stack.items.len == 0) {
             try stack.append(char);
         } else {
+            const last = stack.getLast();
             switch (char) {
-                '(' => {
-                    if (stack.getLast() == ')') {
+                ')' => {
+                    if (last == '(') {
                         _ = stack.pop();
                     } else {
-                        try stack.append(char);
+                        //printerr("expected {c}, found {c}\n", .{ getPair(last), char });
+                        return 3;
                     }
                 },
-                '[' => {
-                    if (stack.getLast() == ']') {
+                ']' => {
+                    if (last == '[') {
                         _ = stack.pop();
                     } else {
-                        try stack.append(char);
+                        //printerr("expected {c}, found {c}\n", .{ getPair(last), char });
+                        return 57;
                     }
                 },
-                '{' => {
-                    if (stack.getLast() == '}') {
+                '}' => {
+                    if (last == '{') {
                         _ = stack.pop();
                     } else {
-                        try stack.append(char);
+                        //printerr("expected {c}, found {c}\n", .{ getPair(last), char });
+                        return 1197;
                     }
                 },
-                '<' => {
-                    if (stack.getLast() == '>') {
+                '>' => {
+                    if (last == '<') {
                         _ = stack.pop();
                     } else {
-                        try stack.append(char);
+                        //printerr("expected {c}, found {c}\n", .{ getPair(last), char });
+                        return 25137;
                     }
                 },
                 else => {
@@ -44,21 +63,22 @@ fn processLine(allocator: std.mem.Allocator, line: []const u8) !usize {
                 },
             }
         }
-        printerr("Stack: ", .{});
-        for (stack.items) |s| printerr("{c}", .{s});
-        printerr("\n", .{});
+        //printerr("Stack: ", .{});
+        //for (stack.items) |s| printerr("{c}", .{s});
+        //printerr("\n", .{});
     }
-    printerr("\n\n\n", .{});
-    return 69;
+    //printerr("\n\n\n", .{});
+    return 0;
 }
 
 fn partOne(allocator: std.mem.Allocator, contents: []u8) !usize {
     var lines = std.mem.splitScalar(u8, contents, '\n');
+    var answer: usize = 0;
     while (lines.next()) |line| {
-        printerr("{s}\n", .{line});
-        _ = try processLine(allocator, line);
+        //printerr("{s}\n", .{line});
+        answer += try processLine(allocator, line);
     }
-    return 9001;
+    return answer;
 }
 
 pub fn main() !void {
@@ -66,7 +86,7 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    const filename = "../inputs/day10test.txt";
+    const filename = "../inputs/day10.txt";
     const content: []u8 = try std.fs.cwd().readFileAlloc(allocator, filename, std.math.maxInt(usize));
     defer allocator.free(content);
 
