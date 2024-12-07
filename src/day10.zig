@@ -17,8 +17,11 @@ inline fn getPair(char: u8) u8 {
 
 fn resolveStack(stack: []u8) !usize {
     var answer: usize = 0;
-    for (stack) |char| {
-        const value = switch (char) {
+    var i: usize = stack.len;
+    while (i > 0) {
+        i -= 1;
+        const char = stack[i];
+        const value: usize = switch (char) {
             '(' => 1,
             '[' => 2,
             '{' => 3,
@@ -75,11 +78,12 @@ fn processLineTwo(allocator: std.mem.Allocator, line: []const u8) !usize {
             }
         }
     }
-    printerr("Stack: ", .{});
-    for (stack.items) |s| printerr("{c}", .{s});
-    printerr("\n", .{});
-
-    return try resolveStack(stack.items);
+    //printerr("Stack: ", .{});
+    //for (stack.items) |s| printerr("{c}", .{s});
+    //printerr("\n", .{});
+    const line_value = try resolveStack(stack.items);
+    //printerr("Stack Resolved Value: {}\n", .{line_value});
+    return line_value;
 }
 
 fn processLine(allocator: std.mem.Allocator, line: []const u8) !usize {
@@ -132,9 +136,9 @@ fn processLine(allocator: std.mem.Allocator, line: []const u8) !usize {
         }
     }
     //printerr("\n\n\n", .{});
-    printerr("Stack: ", .{});
-    for (stack.items) |s| printerr("{c}", .{s});
-    printerr("\n", .{});
+    //printerr("Stack: ", .{});
+    //for (stack.items) |s| printerr("{c}", .{s});
+    //printerr("\n", .{});
 
     return 0;
 }
@@ -151,12 +155,20 @@ fn partOne(allocator: std.mem.Allocator, contents: []u8) !usize {
 
 fn partTwo(allocator: std.mem.Allocator, contents: []u8) !usize {
     var lines = std.mem.splitScalar(u8, contents, '\n');
-    var answer: usize = 0;
+    var values = std.ArrayList(usize).init(allocator);
+    defer values.deinit();
+
     while (lines.next()) |line| {
         //printerr("{s}\n", .{line});
-        answer += try processLineTwo(allocator, line);
+        if (line.len > 0) {
+            const resolved: usize = try processLineTwo(allocator, line);
+            if (resolved > 0) try values.append(resolved);
+        }
     }
-    return answer;
+    std.sort.insertion(usize, values.items, {}, std.sort.asc(usize));
+    //for (values.items) |v| printerr("{} ", .{v});
+    const mid = values.items.len / 2;
+    return values.items[mid];
 }
 
 pub fn main() !void {
@@ -164,7 +176,7 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    const filename = "../inputs/day10test.txt";
+    const filename = "../inputs/day10.txt";
     const content: []u8 = try std.fs.cwd().readFileAlloc(allocator, filename, std.math.maxInt(usize));
     defer allocator.free(content);
 
