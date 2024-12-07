@@ -3,13 +3,24 @@ const printerr = std.debug.print;
 
 const IslandTracker = struct {
     const COUNT = 3;
-    var islands = [_]usize{0} ** COUNT;
+    islands: [COUNT]usize,
+
+    pub fn init() IslandTracker {
+        return .{ .islands = [_]usize{0} ** COUNT };
+    }
 
     pub fn put(self: *IslandTracker, new_island_size: usize) void {
         if (new_island_size <= self.islands[0]) return;
+
         self.islands[0] = new_island_size;
-        std.sort.insertion(usize, self.islands);
+        std.sort.insertion(usize, &self.islands, {}, comptime std.sort.asc(usize));
         return;
+    }
+
+    pub fn print(self: *IslandTracker) void {
+        printerr("Top {} Largest: ", .{COUNT});
+        for (self.islands) |i| printerr("{}, ", .{i});
+        printerr("\n", .{});
     }
 
     pub fn product(self: *IslandTracker) usize {
@@ -60,15 +71,16 @@ fn partTwo(allocator: std.mem.Allocator, filename: []const u8) !usize {
     const cols = std.mem.indexOfScalar(u8, content, '\n').? + 1;
     // const rows = content.len / cols;
 
-    var island_tracker: IslandTracker = undefined;
+    var island_tracker = IslandTracker.init();
 
     for (content, 0..) |char, i| {
         if (char != 'a' and char < '9' and char >= '0') {
             const col = i % cols;
             const row = i / cols;
-            printerr("island begins: ({},{})\n", .{ row, col });
+            //printerr("island begins: ({},{})\n", .{ row, col });
             const island_size = try bfs(content, row, col);
-            printerr("island size: {}\n", .{island_size});
+            //printerr("island size: {}\n", .{island_size});
+            //island_tracker.print();
             island_tracker.put(island_size);
         }
     }
@@ -82,7 +94,7 @@ fn bfs(content: []u8, row: usize, col: usize) !usize {
 
     const char = content[row * cols + col];
     if (char < '9' and char != 'a' and char >= '0') {
-        printerr("bfs({},{})\n", .{ row, col });
+        //printerr("bfs({},{})\n", .{ row, col });
         answer += 1;
         content[row * cols + col] = 'a';
 
@@ -107,7 +119,7 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    const filename = "../inputs/day9test.txt";
+    const filename = "../inputs/day9.txt";
     const part_one_answer = try partOne(allocator, filename);
     printerr("Part One Answer: {}\n", .{part_one_answer});
     const part_two_answer = try partTwo(allocator, filename);
