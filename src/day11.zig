@@ -99,7 +99,7 @@ fn processFlashes(board: *Board) usize {
             //board.contents[i] = '0';
         }
     }
-    printerr("flashes: {}\n", .{flashes});
+    //printerr("flashes: {}\n", .{flashes});
     return flashes;
 }
 
@@ -124,6 +124,29 @@ fn partOne(contents: []u8) !usize {
 
     return total_flashes;
 }
+fn partTwo(contents: []u8) usize {
+    var total_flashes: usize = 0;
+
+    var board = Board.init(contents);
+    const num_elements = board.rows * (board.cols - 1);
+    var last_flashes: usize = 0;
+    for (0..1000) |i| {
+        //board.print();
+        board.increaseByOne();
+        var temp_flashes = processFlashes(&board);
+        while (temp_flashes > 0) {
+            total_flashes += temp_flashes;
+            temp_flashes = processFlashes(&board);
+        }
+        if (last_flashes + num_elements == total_flashes) {
+            //printerr("i: {}. total: {}.\n", .{ i, total_flashes });
+            return i + 1; // we zero indexed so add one
+        }
+        last_flashes = total_flashes;
+        //printerr("i: {}. total: {}.\n", .{ i, total_flashes });
+    }
+    return 0;
+}
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -136,6 +159,8 @@ pub fn main() !void {
 
     const part_one_answer = try partOne(content);
     printerr("Part One Answer: {}\n", .{part_one_answer});
-    //const part_two_answer = try partTwo(allocator, content);
-    //printerr("Part Two Answer: {}\n", .{part_two_answer});
+    const content_two = try std.fs.cwd().readFileAlloc(allocator, filename, std.math.maxInt(usize));
+    defer allocator.free(content_two);
+    const part_two_answer = partTwo(content_two);
+    printerr("Part Two Answer: {}\n", .{part_two_answer});
 }
