@@ -7,8 +7,8 @@ const Board = struct {
     cols: usize,
 
     pub fn init(contents_in: []u8) Board {
-        const cols = std.mem.indexOfScalar(u8, contents_in, '\n').?;
-        const rows = contents_in.len / cols - 1;
+        const cols = std.mem.indexOfScalar(u8, contents_in, '\n').? + 1;
+        const rows = contents_in.len / cols;
         return Board{
             .contents = contents_in,
             .rows = rows,
@@ -19,31 +19,54 @@ const Board = struct {
         self.contents.deinit();
     }
     pub fn increaseByOne(self: *Board) void {
+        //printerr("board increaseByOne()\n", .{});
         for (self.contents, 0..) |c, i| {
             if (c != '\n') self.contents[i] += 1;
         }
     }
     pub fn flash(self: *Board, row: usize, col: usize) usize {
-        if (self.contents[self.getIdx(row, col)] > '9') {
+        const curr = self.charAt(row, col);
+        if (curr == '\n') return 0;
+        if (curr > '9') {
+            //printerr("flash ({},{})\n", .{ row, col });
             self.contents[self.getIdx(row, col)] = '0';
-            self.effectNeighbors(self, row, col);
-            return 0;
+
+            return 1 + self.effectNeighbors(row, col);
+        } else if (curr == '0') {
+            return 0; // just for clarity
+        } else {
+            //printerr("inc ({},{})\n", .{ row, col });
+            self.contents[self.getIdx(row, col)] += 1;
         }
-        return 1;
+        return 0;
     }
     fn effectNeighbors(self: *Board, row: usize, col: usize) usize {
         var total_flashes: usize = 0;
-        if (self.validLoc(row - 1, col - 1)) total_flashes += self.flash(row - 1, col - 1);
+        const r: isize = @intCast(row);
+        const c: isize = @intCast(col);
+
+        if (self.validLoc(r - 1, c - 1)) total_flashes += self.flash(row - 1, col - 1);
+        if (self.validLoc(r - 1, c + 0)) total_flashes += self.flash(row - 1, col + 0);
+        if (self.validLoc(r - 1, c + 1)) total_flashes += self.flash(row - 1, col + 1);
+
+        if (self.validLoc(r + 0, c - 1)) total_flashes += self.flash(row + 0, col - 1);
+        if (self.validLoc(r + 0, c + 1)) total_flashes += self.flash(row + 0, col + 1);
+
+        if (self.validLoc(r + 1, c - 1)) total_flashes += self.flash(row + 1, col - 1);
+        if (self.validLoc(r + 1, c + 0)) total_flashes += self.flash(row + 1, col + 0);
+        if (self.validLoc(r + 1, c + 1)) total_flashes += self.flash(row + 1, col + 1);
+
+        return total_flashes;
     }
-    pub fn getRowCol(self: *Board, i: usize) .{ usize, usize } {
-        const col = i / self.cols;
+    pub fn getSize(self: *Board, i: usize) .{ usize, usize } {
+        const col = i / self.cols; // + 1 for '\n'
         const row = i * self.cols;
         return .{ row, col };
     }
     pub fn getIdx(self: *Board, row: usize, col: usize) usize {
         return row * self.cols + col;
     }
-    pub fn validLoc(self: *Board, row: usize, col: usize) bool {
+    pub fn validLoc(self: *Board, row: isize, col: isize) bool {
         if (row >= 0 and row < self.rows) {
             if (col >= 0 and col < self.cols) {
                 return true;
@@ -51,30 +74,32 @@ const Board = struct {
         }
         return false;
     }
+    pub fn charAt(self: *Board, row: usize, col: usize) u8 {
+        return self.contents[self.getIdx(row, col)];
+    }
     pub fn print(self: *Board) void {
         for (self.contents) |c| {
             printerr("{c}", .{c});
             if (c != '\n') printerr(" ", .{});
         }
+        printerr("\n", .{});
     }
 };
-
-fn effectNeighbors(board: *Board, row: usize, col: usize) void {
-    board.contents[board.getIdx(row + rm, col + cm)] += 1;
-}
 
 fn processFlashes(board: *Board) usize {
     var flashes: usize = 0;
 
     for (board.contents, 0..) |c, i| {
-        const row = i / board.cols;
+        const row = i / (board.cols);
         const col = i % board.cols;
+        //printerr("pF ({},{}) {c}\n", .{ row, col, c });
+
         if (c != '\n' and c > '9' and c != '0') {
-            flashes += 1;
-            effectNeighbors(board, row, col);
-            board.contents[i] = '0';
+            flashes += board.flash(row, col);
+            //board.contents[i] = '0';
         }
     }
+    printerr("flashes: {}\n", .{flashes});
     return flashes;
 }
 
@@ -83,11 +108,18 @@ fn partOne(contents: []u8) !usize {
 
     var board = Board.init(contents);
     board.print();
-    printerr("rows {} cols {}\n", .{ board.rows, board.cols });
-    for (0..2) |_| {
+    //printerr("rows {} cols {}\n", .{ board.rows, board.cols });
+    for (0..100) |_| {
         board.increaseByOne();
-        total_flashes += processFlashes(&board);
-        board.print();
+        //board.print();
+        var temp_flashes = processFlashes(&board);
+        //total_flashes += temp_flashes;
+        while (temp_flashes > 0) {
+            total_flashes += temp_flashes;
+            temp_flashes = processFlashes(&board);
+        }
+        //printerr("end of iteration {}\n", .{i});
+        //board.print();
     }
 
     return total_flashes;
@@ -98,7 +130,7 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    const filename = "../inputs/day11test.txt";
+    const filename = "../inputs/day11.txt";
     const content: []u8 = try std.fs.cwd().readFileAlloc(allocator, filename, std.math.maxInt(usize));
     defer allocator.free(content);
 
