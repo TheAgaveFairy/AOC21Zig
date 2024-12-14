@@ -68,8 +68,30 @@ pub fn caveIndex(caves: std.ArrayList(*Cave), name: []const u8) ?usize {
     return null;
 }
 
-pub fn buildCaves(allocator: std.mem.Allocator, contents: []u8) !*Cave {
-    //var buf: [1024]u8 = undefined;
+pub fn traverseCaves(allocator: std.mem.Allocator, node: *Cave, visited: std.AutoHashMap([]const u8, bool)) usize {
+    var found_paths: usize = 0;
+
+    if (node.caveType == .end) {
+        return 1;
+    }
+
+    if (node.caveType == .small) {
+        for (visited.keyIterator) |key| {
+            if (key == node) {
+                if (visited.get(key)) return 0; // can only visit small cave once
+                visited.getPtr(key).* = true;
+            }
+        }
+    }
+
+    for (node.paths.items) |path| {
+        found_paths += traverseCaves(allocator, path, curr_path);
+    }
+
+    return found_paths;
+}
+
+pub fn buildCaves(allocator: std.mem.Allocator, contents: []u8) !*std.ArrayList(*Cave) {
     var caves = std.ArrayList(*Cave).init(allocator);
     defer caves.deinit();
     //defer for (caves.items) |cave| cave.deinit();
@@ -107,16 +129,30 @@ pub fn buildCaves(allocator: std.mem.Allocator, contents: []u8) !*Cave {
     for (caves.items) |c| printerr("{str}, ", .{c.name});
     printerr("\n", .{});
 
-    const start_idx = caveIndex(caves, "start").?;
-    return caves.items[start_idx];
+    //const start_idx = caveIndex(caves, "start").?;
+    return caves; //caves.items[start_idx];
 }
 
 pub fn partOne(allocator: std.mem.Allocator, contents: []u8) !usize {
-    const start_cave = try buildCaves(allocator, contents);
+    const caves = try buildCaves(allocator, contents);
+    defer caves.deinit();
+    defer for (caves.items) |c| c.deinit();
+
+    const start_idx = caveIndex(caves, "start").?;
+    const start_cave = caves.items[start_idx];
     std.debug.assert(std.mem.eql(u8, start_cave.name, "start"));
     //printerr("debug: {}\n", .{start_cave.paths.len});
+
     for (start_cave.paths.items) |p| printerr("start - {str}\n", .{p.name});
-    return 69;
+
+    var visited = std.AutoHashMap([]const u8, bool).init(allocator);
+    for (caves.items) |cave| {
+        if (cave.caveType == .small)
+            try visited.put(cave, false);
+    }
+
+    const answer = traverseCaves(allocator, start_cave, path);
+    return answer;
 }
 
 pub fn main() !void {
