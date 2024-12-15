@@ -1,6 +1,8 @@
 const std = @import("std");
 const printerr = std.debug.print;
 
+const MAX_CAVES = 32;
+
 const CaveType = enum { start, end, big, small };
 
 const Cave = struct {
@@ -50,7 +52,7 @@ const Cave = struct {
     }
 };
 
-pub fn parseLine(line: []u8) ?[2][]const u8 {
+fn parseLine(line: []u8) ?[2][]const u8 {
     var split_iter = std.mem.splitScalar(u8, line, '-');
     const left = split_iter.next().?;
     const right = split_iter.next().?;
@@ -58,8 +60,9 @@ pub fn parseLine(line: []u8) ?[2][]const u8 {
     return .{ left, right };
 }
 
-pub fn caveIndex(caves: std.ArrayList(*Cave), name: []const u8) ?usize {
+fn caveIndexByName(caves: std.ArrayList(*Cave), name: []const u8) ?usize {
     for (caves.items, 0..) |cave, i| {
+        printerr("looking for {str}, vs {str}\n", .{ name, cave.name });
         if (std.mem.eql(u8, name, cave.name)) {
             printerr("{str} found\n", .{name});
             return i;
@@ -68,30 +71,38 @@ pub fn caveIndex(caves: std.ArrayList(*Cave), name: []const u8) ?usize {
     return null;
 }
 
-pub fn traverseCaves(allocator: std.mem.Allocator, node: *Cave, visited: std.AutoHashMap([]const u8, bool)) usize {
+fn caveIndex(caves: std.ArrayList(*Cave), cave: *Cave) ?usize {
+    for (caves.items, 0..) |c, i| {
+        if (c == cave) return i;
+    }
+    return null;
+}
+
+fn traverseCaves(caves: std.ArrayList(*Cave), node: *Cave, path_visited: std.StaticBitSet(MAX_CAVES)) usize {
     var found_paths: usize = 0;
 
+    var visited = path_visited;
+    // success
     if (node.caveType == .end) {
         return 1;
     }
 
+    // can only visit small caves once
     if (node.caveType == .small) {
-        for (visited.keyIterator) |key| {
-            if (key == node) {
-                if (visited.get(key)) return 0; // can only visit small cave once
-                visited.getPtr(key).* = true;
-            }
-        }
+        const my_idx = caveIndex(caves, node).?;
+        if (visited.isSet(my_idx)) return 0;
+        visited.set(my_idx);
     }
 
-    for (node.paths.items) |path| {
-        found_paths += traverseCaves(allocator, path, curr_path);
+    for (node.paths.items) |next_cave| {
+        if (next_cave.caveType != .start)
+            found_paths += traverseCaves(caves, next_cave, visited);
     }
 
     return found_paths;
 }
 
-pub fn buildCaves(allocator: std.mem.Allocator, contents: []u8) !*std.ArrayList(*Cave) {
+pub fn buildCaves(allocator: std.mem.Allocator, contents: []u8) !std.ArrayList(*Cave) {
     var caves = std.ArrayList(*Cave).init(allocator);
     defer caves.deinit();
     //defer for (caves.items) |cave| cave.deinit();
@@ -106,7 +117,7 @@ pub fn buildCaves(allocator: std.mem.Allocator, contents: []u8) !*std.ArrayList(
         const right_name = pair[1];
 
         var left: *Cave = undefined;
-        if (caveIndex(caves, left_name)) |left_idx| {
+        if (caveIndexByName(caves, left_name)) |left_idx| {
             left = caves.items[left_idx];
         } else {
             left = try Cave.fromName(allocator, left_name);
@@ -114,7 +125,7 @@ pub fn buildCaves(allocator: std.mem.Allocator, contents: []u8) !*std.ArrayList(
         }
 
         var right: *Cave = undefined;
-        if (caveIndex(caves, right_name)) |right_idx| {
+        if (caveIndexByName(caves, right_name)) |right_idx| {
             right = caves.items[right_idx];
         } else {
             right = try Cave.fromName(allocator, right_name);
@@ -138,20 +149,19 @@ pub fn partOne(allocator: std.mem.Allocator, contents: []u8) !usize {
     defer caves.deinit();
     defer for (caves.items) |c| c.deinit();
 
-    const start_idx = caveIndex(caves, "start").?;
+    const start_idx = caveIndexByName(caves, "start").?;
+    printerr("debug: {}\n", .{start_idx});
     const start_cave = caves.items[start_idx];
     std.debug.assert(std.mem.eql(u8, start_cave.name, "start"));
-    //printerr("debug: {}\n", .{start_cave.paths.len});
 
     for (start_cave.paths.items) |p| printerr("start - {str}\n", .{p.name});
 
-    var visited = std.AutoHashMap([]const u8, bool).init(allocator);
-    for (caves.items) |cave| {
-        if (cave.caveType == .small)
-            try visited.put(cave, false);
-    }
+    var visited = std.StaticBitSet(MAX_CAVES).initEmpty(); // could handle this any number of ways, bool ** caves.items.len, etc
+    for (0..MAX_CAVES) |i| printerr("{}: {}\n", .{ i, visited.isSet(i) });
 
-    const answer = traverseCaves(allocator, start_cave, path);
+    printerr("line 154\n", .{});
+
+    const answer = traverseCaves(caves, start_cave, visited);
     return answer;
 }
 
