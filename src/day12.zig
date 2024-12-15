@@ -27,7 +27,6 @@ const Cave = struct {
     }
 
     pub fn fromName(allocator: std.mem.Allocator, name: []const u8) !*Cave {
-        //printerr("from name: {str}\n", .{name});
         if (std.ascii.eqlIgnoreCase(name, "start")) {
             return try Cave.init(allocator, name, CaveType.start);
         } else if (std.ascii.eqlIgnoreCase(name, "end")) {
@@ -56,15 +55,12 @@ fn parseLine(line: []u8) ?[2][]const u8 {
     var split_iter = std.mem.splitScalar(u8, line, '-');
     const left = split_iter.next().?;
     const right = split_iter.next().?;
-    //printerr("left: {str}. right: {str}\n", .{ left, right });
     return .{ left, right };
 }
 
 fn caveIndexByName(caves: std.ArrayList(*Cave), name: []const u8) ?usize {
     for (caves.items, 0..) |cave, i| {
-        //printerr("looking for {str}, vs {str}\n", .{ name, cave.name });
         if (std.mem.eql(u8, name, cave.name)) {
-            //printerr("{str} found\n", .{name});
             return i;
         }
     }
@@ -102,9 +98,31 @@ fn traverseCaves(caves: std.ArrayList(*Cave), node: *Cave, path_visited: std.Sta
     return found_paths;
 }
 
+fn traverseCavesTwo(caves: std.ArrayList(*Cave), node: *Cave, path_visited: [MAX_CAVES]u2) usize {
+    var found_paths: usize = 0;
+    var visited = path_visited;
+    // success
+    if (node.caveType == .end) {
+        return 1;
+    }
+
+    // can only visit small caves TWICE
+    if (node.caveType == .small) {
+        const my_idx = caveIndex(caves, node).?;
+        if (visited[my_idx] == 2) return 0;
+        visited[my_idx] += 1;
+    }
+
+    for (node.paths.items) |next_cave| {
+        if (next_cave.caveType != .start)
+            found_paths += traverseCavesTwo(caves, next_cave, visited);
+    }
+
+    return found_paths;
+}
+
 pub fn buildCaves(allocator: std.mem.Allocator, contents: []u8) !std.ArrayList(*Cave) {
-    var caves = std.ArrayList(*Cave).init(allocator);
-    defer caves.deinit();
+    var caves = std.ArrayList(*Cave).init(allocator); // caller deinits
     var input = contents;
 
     while (std.mem.indexOfScalar(u8, input, '\n')) |idx| {
@@ -149,19 +167,20 @@ pub fn partOne(allocator: std.mem.Allocator, contents: []u8) !usize {
 
     var start_cave: *Cave = undefined;
     for (caves.items) |c| {
-        printerr("{str}\n", .{c.name});
         if (c.caveType == .start) start_cave = c;
     }
     std.debug.assert(std.mem.eql(u8, start_cave.name, "start"));
 
     for (start_cave.paths.items) |p| printerr("start - {str}\n", .{p.name});
 
-    var visited = std.StaticBitSet(MAX_CAVES).initEmpty(); // could handle this any number of ways, bool ** caves.items.len, etc
-    for (0..MAX_CAVES) |i| printerr("{}: {}\n", .{ i, visited.isSet(i) });
-
-    printerr("line 154\n", .{});
-
+    const visited = std.StaticBitSet(MAX_CAVES).initEmpty(); // could handle this any number of ways, bool ** caves.items.len, etc
+    //for (0..MAX_CAVES) |i| printerr("{}: {}\n", .{ i, visited.isSet(i) }); // i've never used this before, want to check standard behavior. i wonder if being initialized to 0s is guaranteed
+    //printerr("line 154\n", .{});
     const answer = traverseCaves(caves, start_cave, visited);
+
+    const visited_two = [_]u2{0} ** MAX_CAVES;
+    const answer_two = traverseCavesTwo(caves, start_cave, visited_two);
+    defer printerr("Part Two: {}\n", .{answer_two});
     return answer;
 }
 
