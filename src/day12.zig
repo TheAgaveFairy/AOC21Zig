@@ -62,9 +62,9 @@ fn parseLine(line: []u8) ?[2][]const u8 {
 
 fn caveIndexByName(caves: std.ArrayList(*Cave), name: []const u8) ?usize {
     for (caves.items, 0..) |cave, i| {
-        printerr("looking for {str}, vs {str}\n", .{ name, cave.name });
+        //printerr("looking for {str}, vs {str}\n", .{ name, cave.name });
         if (std.mem.eql(u8, name, cave.name)) {
-            printerr("{str} found\n", .{name});
+            //printerr("{str} found\n", .{name});
             return i;
         }
     }
@@ -80,8 +80,8 @@ fn caveIndex(caves: std.ArrayList(*Cave), cave: *Cave) ?usize {
 
 fn traverseCaves(caves: std.ArrayList(*Cave), node: *Cave, path_visited: std.StaticBitSet(MAX_CAVES)) usize {
     var found_paths: usize = 0;
-
     var visited = path_visited;
+
     // success
     if (node.caveType == .end) {
         return 1;
@@ -105,12 +105,10 @@ fn traverseCaves(caves: std.ArrayList(*Cave), node: *Cave, path_visited: std.Sta
 pub fn buildCaves(allocator: std.mem.Allocator, contents: []u8) !std.ArrayList(*Cave) {
     var caves = std.ArrayList(*Cave).init(allocator);
     defer caves.deinit();
-    //defer for (caves.items) |cave| cave.deinit();
     var input = contents;
 
     while (std.mem.indexOfScalar(u8, input, '\n')) |idx| {
         const line = input[0..idx];
-        printerr("line: {str}\n", .{line});
         const pair = parseLine(line).?;
 
         const left_name = pair[0];
@@ -137,11 +135,11 @@ pub fn buildCaves(allocator: std.mem.Allocator, contents: []u8) !std.ArrayList(*
 
         input = input[idx + 1 ..];
     }
+    printerr("buildCaves: caves built!\n", .{});
     for (caves.items) |c| printerr("{str}, ", .{c.name});
     printerr("\n", .{});
 
-    //const start_idx = caveIndex(caves, "start").?;
-    return caves; //caves.items[start_idx];
+    return caves;
 }
 
 pub fn partOne(allocator: std.mem.Allocator, contents: []u8) !usize {
@@ -149,9 +147,11 @@ pub fn partOne(allocator: std.mem.Allocator, contents: []u8) !usize {
     defer caves.deinit();
     defer for (caves.items) |c| c.deinit();
 
-    const start_idx = caveIndexByName(caves, "start").?;
-    printerr("debug: {}\n", .{start_idx});
-    const start_cave = caves.items[start_idx];
+    var start_cave: *Cave = undefined;
+    for (caves.items) |c| {
+        printerr("{str}\n", .{c.name});
+        if (c.caveType == .start) start_cave = c;
+    }
     std.debug.assert(std.mem.eql(u8, start_cave.name, "start"));
 
     for (start_cave.paths.items) |p| printerr("start - {str}\n", .{p.name});
