@@ -169,10 +169,12 @@ fn traverseCavesTwoTwo(caves: std.ArrayList(*Cave), node: *Cave, path_visited: s
     var found_paths: usize = 0;
     var visited = path_visited;
     var twice = in_twice;
+    const depth = visited.count();
 
     const my_idx = node.idx; //caveIndex(caves, node).?;
     const seen = visited.isSet(my_idx);
-    printerr("node name: {str} i: {} seen: {}\n", .{ node.name, my_idx, seen });
+    for (0..depth) |_| printerr("  ", .{});
+    printerr("node name: {str} i: {} seen: {} twice: {}\n", .{ node.name, my_idx, seen, twice });
 
     // success
     if (node.caveType == .end) {
@@ -182,8 +184,9 @@ fn traverseCavesTwoTwo(caves: std.ArrayList(*Cave), node: *Cave, path_visited: s
     // can only visit small caves TWICE
     if (node.caveType == .small) {
         if (seen and twice) return 0;
-        visited.set(my_idx);
     }
+
+    visited.set(my_idx);
 
     for (node.paths.items) |next_cave| {
         if (next_cave.caveType != .start) {
