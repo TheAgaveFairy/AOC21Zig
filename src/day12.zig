@@ -10,6 +10,7 @@ const Cave = struct {
     caveType: CaveType,
     paths: std.ArrayList(*Cave),
     allocator: std.mem.Allocator,
+    idx: usize,
 
     pub fn init(allocator: std.mem.Allocator, name: []const u8, caveType: CaveType) !*Cave {
         const cave = try allocator.create(Cave);
@@ -18,6 +19,7 @@ const Cave = struct {
             .caveType = caveType,
             .paths = std.ArrayList(*Cave).init(allocator),
             .allocator = allocator,
+            .idx = 0, // better ways to do this im sure
         };
         return cave;
     }
@@ -154,12 +156,44 @@ pub fn buildCaves(allocator: std.mem.Allocator, contents: []u8) !std.ArrayList(*
         input = input[idx + 1 ..];
     }
     printerr("buildCaves: caves built!\n", .{});
-    for (caves.items) |c| printerr("{str}, ", .{c.name});
+    for (caves.items, 0..) |c, i| {
+        printerr("{str}, ", .{c.name});
+        c.idx = i;
+    }
     printerr("\n", .{});
 
     return caves;
 }
 
+fn traverseCavesTwoTwo(caves: std.ArrayList(*Cave), node: *Cave, path_visited: std.StaticBitSet(MAX_CAVES), in_twice: bool) usize {
+    var found_paths: usize = 0;
+    var visited = path_visited;
+    var twice = in_twice;
+
+    const my_idx = node.idx; //caveIndex(caves, node).?;
+    const seen = visited.isSet(my_idx);
+    printerr("node name: {str} i: {} seen: {}\n", .{ node.name, my_idx, seen });
+
+    // success
+    if (node.caveType == .end) {
+        return 1;
+    }
+
+    // can only visit small caves TWICE
+    if (node.caveType == .small) {
+        if (seen and twice) return 0;
+        visited.set(my_idx);
+    }
+
+    for (node.paths.items) |next_cave| {
+        if (next_cave.caveType != .start) {
+            if (next_cave.caveType == .small and visited.isSet(next_cave.idx)) twice = true;
+            found_paths += traverseCavesTwoTwo(caves, next_cave, visited, twice);
+        }
+    }
+
+    return found_paths;
+}
 pub fn partOne(allocator: std.mem.Allocator, contents: []u8) !usize {
     const caves = try buildCaves(allocator, contents);
     defer caves.deinit();
@@ -174,12 +208,11 @@ pub fn partOne(allocator: std.mem.Allocator, contents: []u8) !usize {
     for (start_cave.paths.items) |p| printerr("start - {str}\n", .{p.name});
 
     const visited = std.StaticBitSet(MAX_CAVES).initEmpty(); // could handle this any number of ways, bool ** caves.items.len, etc
-    //for (0..MAX_CAVES) |i| printerr("{}: {}\n", .{ i, visited.isSet(i) }); // i've never used this before, want to check standard behavior. i wonder if being initialized to 0s is guaranteed
-    //printerr("line 154\n", .{});
     const answer = traverseCaves(caves, start_cave, visited);
 
-    const visited_two = [_]u2{0} ** MAX_CAVES;
-    const answer_two = traverseCavesTwo(caves, start_cave, visited_two);
+    //const visited_two = [_]u2{0} ** MAX_CAVES;
+    const visited_two = std.StaticBitSet(MAX_CAVES).initEmpty(); // could handle this any number of ways, bool ** caves.items.len, etc
+    const answer_two = traverseCavesTwoTwo(caves, start_cave, visited_two, false);
     defer printerr("Part Two: {}\n", .{answer_two});
     return answer;
 }
