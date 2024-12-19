@@ -1,55 +1,34 @@
 const std = @import("std");
 const printerr = std.debug.print;
 
-const Sheet = struct {
-    data: []bool,
+const Fold = struct {
+    axis: u8,
+    val: usize,
+};
+
+const Setup = struct {
     width: usize,
     height: usize,
-    x_fold: ?usize,
-    y_fold: ?usize,
+    folds: std.ArrayList(Fold),
 
-    allocator: std.mem.Allocator,
-
-    pub fn init(allocator: std.mem.Allocator, w: usize, h: usize) !Sheet {
-        const data = try allocator.alloc(bool, w * h);
-        @memset(data, false);
-        return .{ .data = data, .width = w, .height = h, .x_fold = null, .y_fold = null, .allocator = allocator };
+    pub fn init(allocator: std.mem.Allocator, w: usize, h: usize) !Setup {
+        return .{
+            .width = w,
+            .height = h,
+            .folds = std.ArrayList(Fold).init(allocator),
+        };
     }
-    pub fn deinit(self: *Sheet) void {
-        self.allocator.free(self.data);
+    pub fn deinit(self: *Setup) void {
+        self.folds.deinit();
     }
-
-    pub fn set(self: *Sheet, x: usize, y: usize, val: bool) void {
-        self.data[y * self.width + x] = val;
+    fn addFold(self: *Setup, axis: u8, val: usize) !void {
+        try self.folds.append(.{ .axis = axis, .val = val });
     }
-
-    pub fn get(self: *Sheet, x: usize, y: usize) bool {
-        return self.data[y * self.width + x];
-    }
-
-    pub fn countDots(self: *Sheet) usize {
-        var answer: usize = 0;
-        for (self.data, 0..) |d, i| {
-            const x = i % self.width;
-            const y = i / self.width;
-
-            if (self.x_fold) |xf| {
-                if (x >= xf) continue;
-            }
-            if (self.y_fold) |yf| {
-                if (y >= yf) break;
-            }
-
-            if (d) answer += 1;
-        }
-        return answer;
-    }
-
-    pub fn preProcess(in_contents: []u8) ![2]usize {
+    pub fn preProcess(allocator: std.mem.Allocator, in_contents: []u8) !Setup {
         var w: usize = 0;
         var h: usize = 0;
-
         var contents = in_contents;
+
         while (std.mem.indexOfScalar(u8, contents, '\n')) |newl| {
             const line = contents[0..newl];
             if (line.len < 2) break;
@@ -65,7 +44,59 @@ const Sheet = struct {
 
             contents = contents[newl + 1 ..];
         }
-        return .{ w + 1, h + 1 }; // 0-indexed
+
+        var setup = try Setup.init(allocator, w + 1, h + 1);
+        while (std.mem.indexOfScalar(u8, contents, '\n')) |newl| {
+            const line = contents[0..newl];
+
+            if (line.len < 2) {
+                if (newl == 0) contents = contents[1..];
+                continue;
+            }
+            var split_iter = std.mem.splitScalar(u8, line, '=');
+            const left = split_iter.next().?;
+            const right = split_iter.next().?;
+
+            const fold_axis = left[left.len - 1];
+            const fold_line_num = try std.fmt.parseInt(usize, right, 10);
+            printerr("fold ready: {c}-axis {}\n", .{ fold_axis, fold_line_num });
+
+            try setup.addFold(fold_axis, fold_line_num);
+            contents = contents[newl + 1 ..];
+        }
+        return setup;
+    }
+};
+
+const Sheet = struct {
+    data: []bool,
+    width: usize,
+    height: usize,
+    allocator: std.mem.Allocator,
+
+    pub fn init(allocator: std.mem.Allocator, w: usize, h: usize) !Sheet {
+        const data = try allocator.alloc(bool, w * h);
+        @memset(data, false);
+        return .{ .data = data, .width = w, .height = h, .allocator = allocator };
+    }
+    pub fn deinit(self: *Sheet) void {
+        self.allocator.free(self.data);
+    }
+
+    fn set(self: *Sheet, x: usize, y: usize, val: bool) void {
+        self.data[y * self.width + x] = val;
+    }
+
+    fn get(self: *Sheet, x: usize, y: usize) bool {
+        return self.data[y * self.width + x];
+    }
+
+    pub fn countDots(self: *Sheet) usize {
+        var answer: usize = 0;
+        for (self.data) |d| {
+            if (d) answer += 1;
+        }
+        return answer;
     }
 
     pub fn process(self: *Sheet, in_contents: []u8) !void {
@@ -85,10 +116,8 @@ const Sheet = struct {
         }
     }
     pub fn print(self: *Sheet) void {
+        printerr("Sheet Size: {}, {}.\n", .{ self.width, self.height });
         for (self.data, 0..) |b, i| {
-            if (self.y_fold) |yf| {
-                if (i / self.width == yf) break;
-            }
             if (i > 0 and i % self.width == 0) printerr("\n", .{});
             const p: u8 = if (b) '#' else '.';
             printerr("{c}", .{p});
@@ -96,37 +125,72 @@ const Sheet = struct {
         printerr("\n", .{});
     }
 
-    pub fn foldY(self: *Sheet, y: usize) void {
-        self.y_fold = y;
+    /// deinits the sheet and returns a new one with a smaller size and updated dots
+    pub fn foldY(self: *Sheet, y: usize) !Sheet {
+        defer self.deinit();
         var idx = (y + 1) * self.width;
         var i: usize = 0;
-        var j: usize = y;
+        var j: usize = y + 1;
 
-        printerr("starting fold at position: {} -> ({},{})\n", .{ idx, i, j });
+        var new_sheet = try Sheet.init(self.allocator, self.width, y);
+
         while (idx < self.data.len) {
             const new_y = self.height - j - 1;
             const b = self.data[idx] or self.get(i, new_y);
-            self.set(i, new_y, b);
+            new_sheet.set(i, new_y, b);
             idx += 1;
             i = idx % self.width;
             j = idx / self.width;
         }
+        return new_sheet;
+    }
+    /// deinits the sheet and returns a new one with a smaller size and updated dots
+    pub fn foldX(self: *Sheet, x: usize) !Sheet {
+        defer self.deinit();
+        var idx: usize = 0;
+        var i: usize = 0;
+        var j: usize = 0;
+
+        var new_sheet = try Sheet.init(self.allocator, x, self.height);
+        //new_sheet.print();
+        while (idx < self.data.len - 1) {
+            i = idx % self.width;
+            j = idx / self.width;
+            if (i >= x) {
+                idx += 1;
+                continue;
+            }
+            const new_x = self.width - i - 1;
+            const b = self.data[idx] or self.get(new_x, j);
+            //printerr("fX: {},{} -> {},{}\n", .{ i, j, new_x, j });
+            new_sheet.set(i, j, b);
+            idx += 1;
+        }
+        return new_sheet;
     }
 };
 
 pub fn partOne(allocator: std.mem.Allocator, contents: []u8) !usize {
-    const size = try Sheet.preProcess(contents);
-    const w = size[0];
-    const h = size[1];
+    var setup = try Setup.preProcess(allocator, contents);
+    defer setup.deinit();
+    const w = setup.width;
+    const h = setup.height;
+
     var sheet = try Sheet.init(allocator, w, h);
     defer sheet.deinit();
-    printerr("sheet size: {} {}\n", .{ sheet.width, sheet.height });
 
     try sheet.process(contents);
-    sheet.print();
+    //sheet.print();
 
-    sheet.foldY(7);
-    sheet.print();
+    const first_fold = setup.folds.items[0];
+    //for (setup.folds.items) |first_fold| {
+    sheet = switch (first_fold.axis) {
+        'x' => try sheet.foldX(first_fold.val),
+        'y' => try sheet.foldY(first_fold.val),
+        else => unreachable,
+    };
+    //sheet.print();
+    //}
 
     return sheet.countDots();
 }
