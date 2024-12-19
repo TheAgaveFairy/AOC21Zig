@@ -155,12 +155,12 @@ pub fn buildCaves(allocator: std.mem.Allocator, contents: []u8) !std.ArrayList(*
 
         input = input[idx + 1 ..];
     }
-    printerr("buildCaves: caves built!\n", .{});
+    //printerr("buildCaves: caves built!\n", .{});
     for (caves.items, 0..) |c, i| {
-        printerr("{str}, ", .{c.name});
+        //printerr("{str}, ", .{c.name});
         c.idx = i;
     }
-    printerr("\n", .{});
+    //printerr("\n", .{});
 
     return caves;
 }
@@ -168,30 +168,40 @@ pub fn buildCaves(allocator: std.mem.Allocator, contents: []u8) !std.ArrayList(*
 fn traverseCavesTwoTwo(caves: std.ArrayList(*Cave), node: *Cave, path_visited: std.StaticBitSet(MAX_CAVES), in_twice: bool) usize {
     var found_paths: usize = 0;
     var visited = path_visited;
-    var twice = in_twice;
-    const depth = visited.count();
+    //var twice = in_twice;
+    var depth = visited.count();
+    if (in_twice) depth += 1;
 
-    const my_idx = node.idx; //caveIndex(caves, node).?;
+    const my_idx = node.idx;
     const seen = visited.isSet(my_idx);
     for (0..depth) |_| printerr("  ", .{});
-    printerr("node name: {str} i: {} seen: {} twice: {}\n", .{ node.name, my_idx, seen, twice });
+    printerr("name: {str} i: {} seen: {} twice: {}\n", .{ node.name, my_idx, seen, in_twice });
+
+    //for (0..caves.items.len) |i| {
+    //const c: u8 = if (visited.isSet(i)) '1' else '0';
+    //printerr("{c}", .{c});
+    //}
+    //printerr("\n", .{});
+
+    visited.set(my_idx);
 
     // success
     if (node.caveType == .end) {
         return 1;
     }
 
-    // can only visit small caves TWICE
+    // can only visit a small cave once HOWEVER one small cave can be visited twice
     if (node.caveType == .small) {
-        if (seen and twice) return 0;
+        if (seen and in_twice) return 0; // lets not go a third time or a second second time
     }
-
-    visited.set(my_idx);
 
     for (node.paths.items) |next_cave| {
         if (next_cave.caveType != .start) {
-            if (next_cave.caveType == .small and visited.isSet(next_cave.idx)) twice = true;
-            found_paths += traverseCavesTwoTwo(caves, next_cave, visited, twice);
+            if (next_cave.caveType == .small and visited.isSet(next_cave.idx)) {
+                found_paths += traverseCavesTwoTwo(caves, next_cave, visited, true);
+            } else {
+                found_paths += traverseCavesTwoTwo(caves, next_cave, visited, in_twice);
+            }
         }
     }
 
@@ -208,7 +218,7 @@ pub fn partOne(allocator: std.mem.Allocator, contents: []u8) !usize {
     }
     std.debug.assert(std.mem.eql(u8, start_cave.name, "start"));
 
-    for (start_cave.paths.items) |p| printerr("start - {str}\n", .{p.name});
+    //for (start_cave.paths.items) |p| printerr("start - {str}\n", .{p.name});
 
     const visited = std.StaticBitSet(MAX_CAVES).initEmpty(); // could handle this any number of ways, bool ** caves.items.len, etc
     const answer = traverseCaves(caves, start_cave, visited);
