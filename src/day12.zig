@@ -103,21 +103,28 @@ fn traverseCaves(caves: std.ArrayList(*Cave), node: *Cave, path_visited: std.Sta
 fn traverseCavesTwo(caves: std.ArrayList(*Cave), node: *Cave, path_visited: [MAX_CAVES]u2) usize {
     var found_paths: usize = 0;
     var visited = path_visited;
+    const my_idx = node.idx;
+
     // success
     if (node.caveType == .end) {
         return 1;
     }
 
-    // can only visit small caves TWICE
+    // can only visit small caves once EXCEPT we're allowed to visit a single small cave TWICE
     if (node.caveType == .small) {
-        const my_idx = caveIndex(caves, node).?;
-        if (visited[my_idx] == 2) return 0;
-        visited[my_idx] += 1;
+        visited[my_idx] += 1; // we could make this more efficient, whatever
+        var twice_counter: usize = 0;
+        for (0..MAX_CAVES) |i| {
+            if (visited[i] == 2) twice_counter += 1;
+            if (visited[i] == 3) return 0;
+        }
+        if (twice_counter > 1) return 0;
     }
 
     for (node.paths.items) |next_cave| {
-        if (next_cave.caveType != .start)
+        if (next_cave.caveType != .start) {
             found_paths += traverseCavesTwo(caves, next_cave, visited);
+        }
     }
 
     return found_paths;
@@ -165,48 +172,6 @@ pub fn buildCaves(allocator: std.mem.Allocator, contents: []u8) !std.ArrayList(*
     return caves;
 }
 
-fn traverseCavesTwoTwo(caves: std.ArrayList(*Cave), node: *Cave, path_visited: std.StaticBitSet(MAX_CAVES), in_twice: bool) usize {
-    var found_paths: usize = 0;
-    var visited = path_visited;
-    //var twice = in_twice;
-    var depth = visited.count();
-    if (in_twice) depth += 1;
-
-    const my_idx = node.idx;
-    const seen = visited.isSet(my_idx);
-    for (0..depth) |_| printerr("  ", .{});
-    printerr("name: {str} i: {} seen: {} twice: {}\n", .{ node.name, my_idx, seen, in_twice });
-
-    //for (0..caves.items.len) |i| {
-    //const c: u8 = if (visited.isSet(i)) '1' else '0';
-    //printerr("{c}", .{c});
-    //}
-    //printerr("\n", .{});
-
-    visited.set(my_idx);
-
-    // success
-    if (node.caveType == .end) {
-        return 1;
-    }
-
-    // can only visit a small cave once HOWEVER one small cave can be visited twice
-    if (node.caveType == .small) {
-        if (seen and in_twice) return 0; // lets not go a third time or a second second time
-    }
-
-    for (node.paths.items) |next_cave| {
-        if (next_cave.caveType != .start) {
-            if (next_cave.caveType == .small and visited.isSet(next_cave.idx)) {
-                found_paths += traverseCavesTwoTwo(caves, next_cave, visited, true);
-            } else {
-                found_paths += traverseCavesTwoTwo(caves, next_cave, visited, in_twice);
-            }
-        }
-    }
-
-    return found_paths;
-}
 pub fn partOne(allocator: std.mem.Allocator, contents: []u8) !usize {
     const caves = try buildCaves(allocator, contents);
     defer caves.deinit();
@@ -223,9 +188,9 @@ pub fn partOne(allocator: std.mem.Allocator, contents: []u8) !usize {
     const visited = std.StaticBitSet(MAX_CAVES).initEmpty(); // could handle this any number of ways, bool ** caves.items.len, etc
     const answer = traverseCaves(caves, start_cave, visited);
 
-    //const visited_two = [_]u2{0} ** MAX_CAVES;
-    const visited_two = std.StaticBitSet(MAX_CAVES).initEmpty(); // could handle this any number of ways, bool ** caves.items.len, etc
-    const answer_two = traverseCavesTwoTwo(caves, start_cave, visited_two, false);
+    const visited_two = [_]u2{0} ** MAX_CAVES;
+    //const visited_two = std.StaticBitSet(MAX_CAVES).initEmpty(); // could handle this any number of ways, bool ** caves.items.len, etc
+    const answer_two = traverseCavesTwo(caves, start_cave, visited_two);
     defer printerr("Part Two: {}\n", .{answer_two});
     return answer;
 }
@@ -235,7 +200,7 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    const filename = "../inputs/day12test.txt";
+    const filename = "../inputs/day12.txt";
     const content: []u8 = try std.fs.cwd().readFileAlloc(allocator, filename, std.math.maxInt(usize));
     defer allocator.free(content);
 
