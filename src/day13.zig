@@ -59,7 +59,7 @@ const Setup = struct {
 
             const fold_axis = left[left.len - 1];
             const fold_line_num = try std.fmt.parseInt(usize, right, 10);
-            printerr("fold ready: {c}-axis {}\n", .{ fold_axis, fold_line_num });
+            //printerr("fold ready: {c}-axis {}\n", .{ fold_axis, fold_line_num });
 
             try setup.addFold(fold_axis, fold_line_num);
             contents = contents[newl + 1 ..];
@@ -144,6 +144,7 @@ const Sheet = struct {
         }
         return new_sheet;
     }
+
     /// deinits the sheet and returns a new one with a smaller size and updated dots
     pub fn foldX(self: *Sheet, x: usize) !Sheet {
         defer self.deinit();
@@ -152,7 +153,6 @@ const Sheet = struct {
         var j: usize = 0;
 
         var new_sheet = try Sheet.init(self.allocator, x, self.height);
-        //new_sheet.print();
         while (idx < self.data.len - 1) {
             i = idx % self.width;
             j = idx / self.width;
@@ -162,7 +162,7 @@ const Sheet = struct {
             }
             const new_x = self.width - i - 1;
             const b = self.data[idx] or self.get(new_x, j);
-            //printerr("fX: {},{} -> {},{}\n", .{ i, j, new_x, j });
+
             new_sheet.set(i, j, b);
             idx += 1;
         }
@@ -183,6 +183,7 @@ pub fn partOne(allocator: std.mem.Allocator, contents: []u8) !usize {
     //sheet.print();
 
     const first_fold = setup.folds.items[0];
+    printerr("first fold: {c} {}\n", .{ first_fold.axis, first_fold.val });
     //for (setup.folds.items) |first_fold| {
     sheet = switch (first_fold.axis) {
         'x' => try sheet.foldX(first_fold.val),
