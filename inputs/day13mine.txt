@@ -11,5 +11,5 @@
 6,4
 5,6
 
-fold y=3
-fold x=3
+fold x=2
+fold y=2

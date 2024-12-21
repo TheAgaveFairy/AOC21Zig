@@ -139,10 +139,12 @@ const Sheet = struct {
             j = idx / self.width;
             const folded_row = 2 * y - j;
             if (folded_row >= self.height) {
+                new_sheet.set(i, j, self.get(i, j));
                 idx += 1;
                 continue;
             }
-            const b = self.data[idx] or self.get(i, folded_row);
+            //printerr("idx{} -> x{},y{}/{}. {} / {}.\n", .{ idx, i, j, folded_row, self.get(i, j), self.get(i, folded_row) });
+            const b = self.get(i, j) or self.get(i, folded_row);
             new_sheet.set(i, j, b);
             idx += 1;
         }
@@ -166,6 +168,7 @@ const Sheet = struct {
             }
             const fold_x = 2 * x - i;
             if (fold_x >= self.width) {
+                new_sheet.set(i, j, self.get(i, j));
                 idx += 1;
                 continue;
             }
@@ -190,9 +193,9 @@ pub fn partOne(allocator: std.mem.Allocator, contents: []u8) !usize {
     //sheet.print();
 
     const fold = setup.folds.items[0];
-    //printerr("first fold: {c} {}\n", .{ fold.axis, fold.val });
     //for (setup.folds.items) |fold| {
-    //sheet.print();
+    if (sheet.width < 10) sheet.print();
+    printerr("fold: {c} {}\n", .{ fold.axis, fold.val });
     sheet = switch (fold.axis) {
         'x' => try sheet.foldX(fold.val),
         'y' => try sheet.foldY(fold.val),
@@ -209,7 +212,7 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    const filename = "../inputs/day13test.txt";
+    const filename = "../inputs/day13.txt";
     const content: []u8 = try std.fs.cwd().readFileAlloc(allocator, filename, std.math.maxInt(usize));
     defer allocator.free(content);
 
