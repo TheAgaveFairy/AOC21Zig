@@ -128,19 +128,23 @@ const Sheet = struct {
     /// deinits the sheet and returns a new one with a smaller size and updated dots
     pub fn foldY(self: *Sheet, y: usize) !Sheet {
         defer self.deinit();
-        var idx = (y + 1) * self.width;
-        var i: usize = 0;
-        var j: usize = y + 1;
+        var idx: usize = 0;
+        var i: usize = 0; // "x"
+        var j: usize = 0; // "y"
 
         var new_sheet = try Sheet.init(self.allocator, self.width, y);
 
-        while (idx < self.data.len) {
-            const new_y = self.height - j - 1;
-            const b = self.data[idx] or self.get(i, new_y);
-            new_sheet.set(i, new_y, b);
-            idx += 1;
+        while (idx < (y * self.width)) {
             i = idx % self.width;
             j = idx / self.width;
+            const folded_row = 2 * y - j;
+            if (folded_row >= self.height) {
+                idx += 1;
+                continue;
+            }
+            const b = self.data[idx] or self.get(i, folded_row);
+            new_sheet.set(i, j, b);
+            idx += 1;
         }
         return new_sheet;
     }
@@ -160,9 +164,12 @@ const Sheet = struct {
                 idx += 1;
                 continue;
             }
-            const new_x = self.width - i - 1;
-            const b = self.data[idx] or self.get(new_x, j);
-
+            const fold_x = 2 * x - i;
+            if (fold_x >= self.width) {
+                idx += 1;
+                continue;
+            }
+            const b = self.data[idx] or self.get(fold_x, j);
             new_sheet.set(i, j, b);
             idx += 1;
         }
@@ -182,16 +189,17 @@ pub fn partOne(allocator: std.mem.Allocator, contents: []u8) !usize {
     try sheet.process(contents);
     //sheet.print();
 
-    const first_fold = setup.folds.items[0];
-    printerr("first fold: {c} {}\n", .{ first_fold.axis, first_fold.val });
-    //for (setup.folds.items) |first_fold| {
-    sheet = switch (first_fold.axis) {
-        'x' => try sheet.foldX(first_fold.val),
-        'y' => try sheet.foldY(first_fold.val),
+    const fold = setup.folds.items[0];
+    //printerr("first fold: {c} {}\n", .{ fold.axis, fold.val });
+    //for (setup.folds.items) |fold| {
+    //sheet.print();
+    sheet = switch (fold.axis) {
+        'x' => try sheet.foldX(fold.val),
+        'y' => try sheet.foldY(fold.val),
         else => unreachable,
     };
-    //sheet.print();
     //}
+    if (sheet.width < 10) sheet.print();
 
     return sheet.countDots();
 }
@@ -201,7 +209,7 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    const filename = "../inputs/day13.txt";
+    const filename = "../inputs/day13test.txt";
     const content: []u8 = try std.fs.cwd().readFileAlloc(allocator, filename, std.math.maxInt(usize));
     defer allocator.free(content);
 
