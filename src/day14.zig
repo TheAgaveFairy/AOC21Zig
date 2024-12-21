@@ -4,12 +4,14 @@ const printerr = std.debug.print;
 const PairCounter = struct {
     pairs: std.AutoHashMap([2]u8, usize),
     rules: std.AutoHashMap([2]u8, u8),
+    counts: [26]usize,
     allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator) PairCounter {
         return .{
             .pairs = std.AutoHashMap([2]u8, usize).init(allocator),
             .rules = std.AutoHashMap([2]u8, u8).init(allocator),
+            .counts = [_]usize{0} ** 26,
             .allocator = allocator,
         };
     }
@@ -18,11 +20,19 @@ const PairCounter = struct {
         self.rules.deinit();
     }
 
+    pub fn incChar(self: *PairCounter, char: u8, value: usize) void {
+        self.counts[char - 'A'] += value;
+    }
+    /// won't check for underflow
+    pub fn decChar(self: *PairCounter, char: u8, value: usize) void {
+        self.counts[char - 'A'] -= value;
+    }
+
     pub fn incPair(self: *PairCounter, pair: [2]u8) !void {
         if (self.pairs.getPtr(pair)) |val_ptr| {
             val_ptr.* = val_ptr.* + 1;
         } else {
-            try self.pairs.put(pair, 0);
+            try self.pairs.put(pair, 1);
         }
     }
 
@@ -66,17 +76,36 @@ const PairCounter = struct {
 
     pub fn buildPairs(self: *PairCounter, line: []u8) !void {
         var i: usize = 0;
-        while (i < line.len) : (i += 2) {
+        while (i < line.len - 1) : (i += 1) {
+            self.incChar(line[i], 1);
             const pair = .{ line[i], line[i + 1] };
             try self.incPair(pair);
         }
+        self.incChar(line[line.len - 1], 1);
     }
     pub fn print(self: *PairCounter) void {
         var pair_iter = self.pairs.keyIterator();
         while (pair_iter.next()) |k| {
-            printerr("{str}", .{k});
+            if (self.pairs.get(k.*)) |val| {
+                printerr("{str}: {} ", .{ k, val });
+            }
         }
         printerr("\n", .{});
+        for (self.counts, 0..) |count, pos| {
+            const char: u8 = @intCast(pos + 'A');
+            if (count > 0) printerr("{c}:{}, ", .{ char, count });
+        }
+        printerr("\n", .{});
+    }
+    pub fn elementStats(self: *PairCounter) usize {
+        var max: usize = 0;
+        var min: usize = std.math.maxInt(usize);
+
+        for (self.counts) |count| {
+            max = @max(max, count);
+            if (count > 0) min = @min(min, count);
+        }
+        return max - min;
     }
 };
 
@@ -84,36 +113,32 @@ pub fn partOne(allocator: std.mem.Allocator, contents: []u8) !usize {
     var pair_counter = try PairCounter.processInput(allocator, contents);
     defer pair_counter.deinit();
 
-    for (0..4) |_| {
-        pair_counter.print();
-        const num_pairs = pair_counter.pairs.count();
-        var adds = try allocator.alloc([2]u8, 2 * num_pairs);
-        defer allocator.free(adds);
-        var subs = try allocator.alloc([2]u8, num_pairs);
-        defer allocator.free(subs);
+    for (0..10) |_| {
+        //pair_counter.print();
+        var pairs_copy = try pair_counter.pairs.clone();
+        defer pairs_copy.deinit();
 
         // how to iterate over AutoHashMap
-        var pairs_iter = pair_counter.pairs.iterator();
-        var adds_idx: usize = 0;
-        var subs_idx: usize = 0;
+        var pairs_iter = pairs_copy.iterator();
         while (pairs_iter.next()) |entry| {
             const key = entry.key_ptr.*;
+            const val = entry.value_ptr.*;
             if (pair_counter.rules.getPtr(key)) |char_ptr| {
-                adds[adds_idx] = .{ key[0], char_ptr.* };
-                adds_idx += 1;
-                adds[adds_idx] = .{ char_ptr.*, key[1] };
-                adds_idx += 1;
-                subs[subs_idx] = key;
-                subs_idx += 1;
+                //printerr("key: {str} -> {c}. {} times.\n", .{ key, char_ptr.*, val });
+                for (0..val) |_| {
+                    try pair_counter.incPair(.{ key[0], char_ptr.* });
+                    try pair_counter.incPair(.{ char_ptr.*, key[1] });
+                    pair_counter.decPair(key);
+
+                    pair_counter.incChar(char_ptr.*, 1);
+                }
             }
         }
-
-        for (0..adds_idx) |i| try pair_counter.incPair(adds[i]);
-        for (0..subs_idx) |i| pair_counter.decPair(subs[i]);
     }
-    pair_counter.print();
+    //pair_counter.print();
+    return pair_counter.elementStats();
 
-    return 1337;
+    //return 1337;
 }
 
 pub fn main() !void {
@@ -121,7 +146,7 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    const filename = "../inputs/day14test.txt";
+    const filename = "../inputs/day14.txt";
     const content: []u8 = try std.fs.cwd().readFileAlloc(allocator, filename, std.math.maxInt(usize));
     defer allocator.free(content);
 
