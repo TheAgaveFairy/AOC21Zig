@@ -159,7 +159,7 @@ const Sheet = struct {
         var j: usize = 0;
 
         var new_sheet = try Sheet.init(self.allocator, x, self.height);
-        while (idx < self.data.len - 1) {
+        while (idx < self.data.len) {
             i = idx % self.width;
             j = idx / self.width;
             if (i >= x) {
@@ -172,7 +172,7 @@ const Sheet = struct {
                 idx += 1;
                 continue;
             }
-            const b = self.data[idx] or self.get(fold_x, j);
+            const b = self.get(i, j) or self.get(fold_x, j);
             new_sheet.set(i, j, b);
             idx += 1;
         }
@@ -192,19 +192,24 @@ pub fn partOne(allocator: std.mem.Allocator, contents: []u8) !usize {
     try sheet.process(contents);
     //sheet.print();
 
-    const fold = setup.folds.items[0];
-    //for (setup.folds.items) |fold| {
-    if (sheet.width < 10) sheet.print();
-    printerr("fold: {c} {}\n", .{ fold.axis, fold.val });
-    sheet = switch (fold.axis) {
-        'x' => try sheet.foldX(fold.val),
-        'y' => try sheet.foldY(fold.val),
-        else => unreachable,
-    };
-    //}
-    if (sheet.width < 10) sheet.print();
+    var part_one_answer: usize = 0;
+    for (setup.folds.items, 0..) |fold, i| {
+        if (sheet.width < 10) sheet.print();
+        printerr("fold: {c} {}\n", .{ fold.axis, fold.val });
+        sheet = switch (fold.axis) {
+            'x' => try sheet.foldX(fold.val),
+            'y' => try sheet.foldY(fold.val),
+            else => unreachable,
+        };
+        if (i == 0) part_one_answer = sheet.countDots();
+    }
+    if (sheet.width < 15) sheet.print();
+    //printerr("ASDF\n", .{});
+    //for (sheet.data) |s| printerr("{} ", .{s});
+    //printerr("\n", .{});
+    sheet.print();
 
-    return sheet.countDots();
+    return part_one_answer;
 }
 
 pub fn main() !void {
