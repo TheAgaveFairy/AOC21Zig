@@ -28,18 +28,18 @@ const PairCounter = struct {
         self.counts[char - 'A'] -= value;
     }
 
-    pub fn incPair(self: *PairCounter, pair: [2]u8) !void {
+    pub fn incPair(self: *PairCounter, pair: [2]u8, value: usize) !void {
         if (self.pairs.getPtr(pair)) |val_ptr| {
-            val_ptr.* = val_ptr.* + 1;
+            val_ptr.* = val_ptr.* + value;
         } else {
-            try self.pairs.put(pair, 1);
+            try self.pairs.put(pair, value);
         }
     }
 
-    pub fn decPair(self: *PairCounter, key: [2]u8) void {
+    pub fn decPair(self: *PairCounter, key: [2]u8, value: usize) void {
         const val_ptr = self.pairs.getPtr(key).?;
         const val = val_ptr.*;
-        if (val > 0) val_ptr.* = val - 1;
+        if (val > 0) val_ptr.* = val - value;
     }
 
     pub fn processInput(allocator: std.mem.Allocator, in_contents: []u8) !PairCounter {
@@ -79,7 +79,7 @@ const PairCounter = struct {
         while (i < line.len - 1) : (i += 1) {
             self.incChar(line[i], 1);
             const pair = .{ line[i], line[i + 1] };
-            try self.incPair(pair);
+            try self.incPair(pair, 1);
         }
         self.incChar(line[line.len - 1], 1);
     }
@@ -109,11 +109,14 @@ const PairCounter = struct {
     }
 };
 
-pub fn partOne(allocator: std.mem.Allocator, contents: []u8) !usize {
+pub fn partOne(allocator: std.mem.Allocator, contents: []u8) ![2]usize {
     var pair_counter = try PairCounter.processInput(allocator, contents);
     defer pair_counter.deinit();
 
-    for (0..10) |_| {
+    var answer: [2]usize = .{ 0, 0 };
+
+    for (0..40) |i| {
+        if (i == 10) answer[0] = pair_counter.elementStats();
         //pair_counter.print();
         var pairs_copy = try pair_counter.pairs.clone();
         defer pairs_copy.deinit();
@@ -125,18 +128,17 @@ pub fn partOne(allocator: std.mem.Allocator, contents: []u8) !usize {
             const val = entry.value_ptr.*;
             if (pair_counter.rules.getPtr(key)) |char_ptr| {
                 //printerr("key: {str} -> {c}. {} times.\n", .{ key, char_ptr.*, val });
-                for (0..val) |_| {
-                    try pair_counter.incPair(.{ key[0], char_ptr.* });
-                    try pair_counter.incPair(.{ char_ptr.*, key[1] });
-                    pair_counter.decPair(key);
+                try pair_counter.incPair(.{ key[0], char_ptr.* }, val);
+                try pair_counter.incPair(.{ char_ptr.*, key[1] }, val);
+                pair_counter.decPair(key, val);
 
-                    pair_counter.incChar(char_ptr.*, 1);
-                }
+                pair_counter.incChar(char_ptr.*, val);
             }
         }
     }
     //pair_counter.print();
-    return pair_counter.elementStats();
+    answer[1] = pair_counter.elementStats();
+    return answer;
 
     //return 1337;
 }
@@ -150,6 +152,7 @@ pub fn main() !void {
     const content: []u8 = try std.fs.cwd().readFileAlloc(allocator, filename, std.math.maxInt(usize));
     defer allocator.free(content);
 
-    const part_one_answer = try partOne(allocator, content);
-    printerr("Part One Answer: {}\n", .{part_one_answer});
+    const answer = try partOne(allocator, content);
+    printerr("Part One Answer: {}\n", .{answer[0]});
+    printerr("Part Two Answer: {}\n", .{answer[1]});
 }
